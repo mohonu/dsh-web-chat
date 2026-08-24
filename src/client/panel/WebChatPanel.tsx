@@ -65,6 +65,9 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
   const [renameDraft, setRenameDraft] = useState('')
   const [deleteArmId, setDeleteArmId] = useState<string | undefined>(undefined)
   const [clearArm, setClearArm] = useState(false)
+  const [recoverOpen, setRecoverOpen] = useState(false)
+  const [webMissing, setWebMissing] = useState<string[]>([])
+  const [recovering, setRecovering] = useState(false)
   const listRef = useRef<HTMLDivElement | null>(null)
   const toastTimer = useRef<number | undefined>(undefined)
   const armTimer = useRef<number | undefined>(undefined)
@@ -246,6 +249,38 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
     await api.closeBrowser().catch(() => undefined)
   }, [api])
 
+  const toggleRecover = useCallback(async (): Promise<void> => {
+    if (recoverOpen) {
+      setRecoverOpen(false)
+      return
+    }
+    try {
+      const result = await api.webChats()
+      setWebMissing(result.ok === true ? (result.missing ?? []) : [])
+      setRecoverOpen(true)
+    } catch (error) {
+      showToast(String(error), true)
+    }
+  }, [recoverOpen, api, showToast])
+
+  const recoverFromWeb = useCallback(async (title: string): Promise<void> => {
+    if (recovering) return
+    setRecovering(true)
+    try {
+      const result = await api.recover(title)
+      if (result.ok !== true || result.chatId === undefined) {
+        showToast(result.error ?? 'recover failed', true)
+        return
+      }
+      setWebMissing(list => list.filter(item => item !== title))
+      showToast(fmt(tt('recover.done'), { title: result.title ?? title }))
+    } catch (error) {
+      showToast(String(error), true)
+    } finally {
+      setRecovering(false)
+    }
+  }, [recovering, api, showToast, tt])
+
   const transferToHarness = useCallback(async (): Promise<void> => {
     if (viewChat === undefined || transferring) return
     setTransferring(true)
@@ -425,6 +460,33 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
           <button className={`${css.button} ${css.buttonPrimary} ${css.sidebarNew}`} onClick={() => { void newChat() }}>
             {tt('action.newChat')}
           </button>
+          <button
+            className={`${css.buttonGhost} ${css.sidebarNew}`}
+            disabled={loggedIn !== true}
+            onClick={() => { void toggleRecover() }}
+            title={tt('recover.hint')}
+          >
+            {tt('action.recover')}
+          </button>
+          {recoverOpen && (
+            <div className={css.recoverList}>
+              {webMissing.length === 0 ? (
+                <div className={css.recoverEmpty}>{tt('recover.empty')}</div>
+              ) : (
+                webMissing.map(title => (
+                  <button
+                    className={css.recoverItem}
+                    key={title}
+                    disabled={recovering}
+                    onClick={() => { void recoverFromWeb(title) }}
+                    title={title}
+                  >
+                    <span className={css.recoverTitle}>{title}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
           <div className={css.sidebarList}>
             {chats.length === 0 ? (
               <div className={css.sidebarEmpty}>{tt('sidebar.empty')}</div>

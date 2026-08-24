@@ -95,6 +95,39 @@ export class TranscriptStore {
     return [...this.chats]
   }
 
+  /** Local transcript titles (for matching against the web sidebar). */
+  titles(): string[] {
+    return this.chats.map(chat => chat.title)
+  }
+
+  /**
+   * Import a recovered web conversation as a local transcript. Dedups by exact
+   * title (web conversations with the same title map to the existing chat), so
+   * re-syncing is idempotent. Returns the chat plus whether it was newly created.
+   */
+  importTranscript(input: { title: string; model: string; messages: WebChatMessage[] }): { chat: WebChatTranscript; created: boolean } {
+    const cleanTitle = input.title.trim().replace(/\s+/g, ' ').slice(0, 80) || '新的对话'
+    const existing = this.chats.find(chat => chat.title === cleanTitle)
+    if (existing !== undefined) {
+      this.activeChatId = existing.id
+      return { chat: existing, created: false }
+    }
+    const now = Date.now()
+    const chat: WebChatTranscript = {
+      id: `chat-${now.toString(36)}-${randomUUID().slice(0, 6)}`,
+      title: cleanTitle,
+      createdAt: now,
+      updatedAt: now,
+      model: input.model,
+      messages: input.messages,
+      streaming: false,
+    }
+    this.chats.unshift(chat)
+    this.activeChatId = chat.id
+    this.persist()
+    return { chat, created: true }
+  }
+
   /** The active chat, or undefined when none exists yet. */
   activeChat(): WebChatTranscript | undefined {
     if (this.activeChatId === undefined) return undefined

@@ -79,6 +79,13 @@ export function webChatStatusTool(engine: DeepSeekWebEngine, store: TranscriptSt
         `activeChat: ${active === undefined ? '-' : `${active.id} (${active.title})`}`,
         `chats:\n${renderChats(store)}`,
       ]
+      const web = await engine.listWebConversations().catch(() => [] as Array<{ title: string }>)
+      if (web.length > 0) {
+        const localTitles = new Set(store.list().map(chat => chat.title))
+        const missing = web.filter(item => !localTitles.has(item.title)).map(item => item.title)
+        lines.push(`webChats:\n${web.map(item => `  - ${item.title}`).join('\n')}`)
+        if (missing.length > 0) lines.push(`webChatsNotImported (use webchat_recover):\n${missing.map(title => `  - ${title}`).join('\n')}`)
+      }
       const workspaces = listWorkspaces?.()
       if (workspaces !== undefined) {
         lines.push('workspaces:')
@@ -140,6 +147,32 @@ export function webChatSendTool(engine: DeepSeekWebEngine) {
         code: result.code,
         partial: result.error !== undefined,
       }
+    },
+  })
+}
+
+/** The web-conversation recover tool (sync web sidebar → local store). */
+export function webChatRecoverTool(engine: DeepSeekWebEngine) {
+  return defineTool({
+    name: 'webchat_recover',
+    description: 'Recover a DeepSeek 网页端 conversation into the local store so it can be imported/transferred. With no title, lists the web-side conversations. Triggers: 同步网页会话, 恢复网页对话, sync webchat.',
+    parameters: {
+      title: { type: 'string', description: 'Conversation title (from the web sidebar or webchat_status webChats list). Omit to list web conversations.' },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: false, properties: { report: { type: 'string', required: true } } },
+      render: (_args, value: { report?: string }) => text(value.report ?? ''),
+    },
+    async execute(args: { title?: string }): Promise<{ report: string }> {
+      if (typeof args?.title === 'string' && args.title.trim() !== '') {
+        const result = await engine.recoverWebConversation(args.title.trim())
+        if (!result.ok) return { report: `webchat_recover: 恢复失败 — ${result.error ?? ''}` }
+        const dedup = result.created === false ? '（本地已存在，未重复导入）' : ''
+        return { report: `webchat_recover: 已恢复「${result.title ?? ''}」为本地对话 ${result.chatId ?? ''}${dedup}。可用 webchat_transfer 转移。` }
+      }
+      const web = await engine.listWebConversations().catch(() => [] as Array<{ title: string }>)
+      if (web.length === 0) return { report: 'webchat_recover: 未在网页端读到会话（可能未登录或页面已改版）' }
+      return { report: web.map(item => `- ${item.title}`).join('\n') }
     },
   })
 }

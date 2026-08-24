@@ -56,5 +56,18 @@ export declare class WebChatApi {
         ok: boolean;
         count?: number;
     }>>;
+    webChats(): Promise<EndpointResult<{
+        ok: boolean;
+        web: Array<{
+            title: string;
+        }>;
+        missing: string[];
+    }>>;
+    recover(title: string): Promise<EndpointResult<{
+        ok: boolean;
+        chatId?: string;
+        title?: string;
+        created?: boolean;
+    }>>;
 }
 export {};

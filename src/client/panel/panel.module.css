@@ -219,6 +219,55 @@ html[data-dsh-webchat-active]:not([data-dsh-taskboard-active]):not([data-dsh-ssh
   justify-content: center;
 }
 
+.recoverList {
+  max-height: 160px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer1, var(--dsw-alias-bg-elevated));
+}
+
+.recoverItem {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recoverItem:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(128, 128, 128, 0.12));
+}
+
+.recoverItem:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.recoverTitle {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recoverEmpty {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
 .sidebarList {
   flex: 1;
   min-height: 0;

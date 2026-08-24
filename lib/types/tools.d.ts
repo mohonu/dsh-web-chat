@@ -19,6 +19,8 @@ export interface WorkspaceRef {
 export declare function webChatStatusTool(engine: DeepSeekWebEngine, store: TranscriptStore, listWorkspaces?: () => WorkspaceRef[] | undefined): import("@deepseek-ai/dsh-tools").ToolDefinition;
 /** The send-via-web tool. */
 export declare function webChatSendTool(engine: DeepSeekWebEngine): import("@deepseek-ai/dsh-tools").ToolDefinition;
+/** The web-conversation recover tool (sync web sidebar → local store). */
+export declare function webChatRecoverTool(engine: DeepSeekWebEngine): import("@deepseek-ai/dsh-tools").ToolDefinition;
 /** The transcript import tool. */
 export declare function webChatImportTool(store: TranscriptStore): import("@deepseek-ai/dsh-tools").ToolDefinition;
 /** The transfer tool (closes over the host context so it can create sessions). */

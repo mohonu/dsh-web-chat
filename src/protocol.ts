@@ -111,4 +111,6 @@ export const WEBChat_API = {
   renameChat: '/api/dsh-webchat/rename',
   deleteChat: '/api/dsh-webchat/delete',
   clearChats: '/api/dsh-webchat/clear',
+  webChats: '/api/dsh-webchat/web-chats',
+  recover: '/api/dsh-webchat/recover',
 } as const

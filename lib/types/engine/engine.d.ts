@@ -144,6 +144,29 @@ export declare class DeepSeekWebEngine {
      * reply source is the teed SSE stream.
      */
     private scrapeConversation;
+    /** Convert scraped DOM messages into transcript messages (markdown content). */
+    private scrapedToMessages;
+    /**
+     * Scrape the DeepSeek sidebar conversation titles (best effort). The web
+     * conversation list has no stable contract, so several candidate selectors
+     * are probed and short non-menu texts are returned.
+     */
+    listWebConversations(): Promise<Array<{
+        title: string;
+    }>>;
+    /** Click a sidebar conversation whose text contains the given title. */
+    private clickConversationByTitle;
+    /**
+     * Recover a web conversation into the local transcript store: open it in the
+     * sidebar, scrape its history, and import it (idempotent by title).
+     */
+    recoverWebConversation(title: string): Promise<{
+        ok: boolean;
+        chatId?: string;
+        title?: string;
+        created?: boolean;
+        error?: string;
+    }>;
     /** Detect whether the page is currently generating (stop affordance visible). */
     private isGenerating;
     /** Click the stop-generation affordance, best effort. */

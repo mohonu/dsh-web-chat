@@ -102,4 +102,6 @@ export declare const WEBChat_API: {
     readonly renameChat: "/api/dsh-webchat/rename";
     readonly deleteChat: "/api/dsh-webchat/delete";
     readonly clearChats: "/api/dsh-webchat/clear";
+    readonly webChats: "/api/dsh-webchat/web-chats";
+    readonly recover: "/api/dsh-webchat/recover";
 };

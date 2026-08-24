@@ -18,6 +18,7 @@ export declare const zh: {
     readonly 'action.openLogin': "打开登录窗口";
     readonly 'action.closeBrowser': "关闭浏览器";
     readonly 'action.newChat': "新对话";
+    readonly 'action.recover': "从网页恢复";
     readonly 'action.refresh': "刷新";
     readonly 'action.send': "发送";
     readonly 'action.stop': "停止生成";
@@ -72,6 +73,9 @@ export declare const zh: {
     readonly 'transfer.failed': "转移到 Harness 失败：{error}";
     readonly 'export.done': "已导出到工作区文件：{filePath}";
     readonly 'export.failed': "导出失败：{error}";
+    readonly 'recover.hint': "列出网页端尚未导入本地的会话";
+    readonly 'recover.empty': "网页端没有未导入的会话";
+    readonly 'recover.done': "已恢复「{title}」";
     readonly 'msg.empty': "（空）";
     readonly 'msg.error': "（该回复可能不完整：{error}）";
     readonly streaming: "生成中";
@@ -91,6 +95,7 @@ export declare const en: {
     'action.openLogin': string;
     'action.closeBrowser': string;
     'action.newChat': string;
+    'action.recover': string;
     'action.refresh': string;
     'action.send': string;
     'action.stop': string;
@@ -145,6 +150,9 @@ export declare const en: {
     'transfer.failed': string;
     'export.done': string;
     'export.failed': string;
+    'recover.hint': string;
+    'recover.empty': string;
+    'recover.done': string;
     'msg.empty': string;
     'msg.error': string;
     streaming: string;

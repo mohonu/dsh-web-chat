@@ -29,6 +29,21 @@ export declare class TranscriptStore {
     createChat(model: string): WebChatTranscript;
     /** All chats, newest first. */
     list(): WebChatTranscript[];
+    /** Local transcript titles (for matching against the web sidebar). */
+    titles(): string[];
+    /**
+     * Import a recovered web conversation as a local transcript. Dedups by exact
+     * title (web conversations with the same title map to the existing chat), so
+     * re-syncing is idempotent. Returns the chat plus whether it was newly created.
+     */
+    importTranscript(input: {
+        title: string;
+        model: string;
+        messages: WebChatMessage[];
+    }): {
+        chat: WebChatTranscript;
+        created: boolean;
+    };
     /** The active chat, or undefined when none exists yet. */
     activeChat(): WebChatTranscript | undefined;
     /** Read one chat by id. */

@@ -784,6 +784,101 @@ export class DeepSeekWebEngine {
     return raw
   }
 
+  /** Convert scraped DOM messages into transcript messages (markdown content). */
+  private scrapedToMessages(scraped: ScrapedMessage[]): WebChatMessage[] {
+    return scraped.map(message => {
+      if (message.role === 'user') {
+        const text = message.parts.map(part => part.text).join('\n\n').trim()
+        return { id: randomUUID(), role: 'user', content: text === '' ? '（无内容）' : text, ts: Date.now() }
+      }
+      const think = message.parts.filter(part => part.kind === 'think').map(part => part.text).join('\n\n').trim()
+      const bodyHtml = message.parts.find(part => part.kind === 'body')?.markdown ?? ''
+      const bodyMd = bodyHtml === '' ? '' : serializeToMarkdown(parseMarkup(bodyHtml))
+      const thinkMd = think === '' ? '' : `<details><summary>思考过程</summary>\n\n${think}\n\n</details>`
+      return { id: randomUUID(), role: 'assistant', content: [thinkMd, bodyMd].filter(Boolean).join('\n\n'), ts: Date.now() }
+    })
+  }
+
+  /**
+   * Scrape the DeepSeek sidebar conversation titles (best effort). The web
+   * conversation list has no stable contract, so several candidate selectors
+   * are probed and short non-menu texts are returned.
+   */
+  async listWebConversations(): Promise<Array<{ title: string }>> {
+    if (this.page === undefined) return []
+    const titles = await this.page.evaluate(() => {
+      const found = new Set<string>()
+      const selectors = [
+        '[class*="conversation"]',
+        '[class*="chat-item"]',
+        '[class*="session-item"]',
+        'nav a',
+        'aside a',
+        '[class*="sidebar"] a',
+      ]
+      for (const selector of selectors) {
+        for (const el of Array.from(document.querySelectorAll<HTMLElement>(selector))) {
+          const text = (el.textContent ?? '').trim().replace(/\s+/g, ' ')
+          if (text.length >= 1 && text.length <= 80 && !/^(新对话|New chat|删除|重命名|清空|设置|登出)/i.test(text)) {
+            found.add(text)
+          }
+        }
+      }
+      return Array.from(found).slice(0, 50)
+    }).catch(() => [] as string[])
+    return titles.map(title => ({ title }))
+  }
+
+  /** Click a sidebar conversation whose text contains the given title. */
+  private async clickConversationByTitle(title: string): Promise<boolean> {
+    if (this.page === undefined) return false
+    const selectors = [
+      '[class*="conversation"]',
+      '[class*="chat-item"]',
+      '[class*="session-item"]',
+      'nav a',
+      'aside a',
+    ]
+    for (const selector of selectors) {
+      const locator = this.page.locator(selector).filter({ hasText: title }).first()
+      if (await locator.count().catch(() => 0) > 0) {
+        await locator.click({ timeout: 5_000 }).catch(() => undefined)
+        return true
+      }
+    }
+    return false
+  }
+
+  /**
+   * Recover a web conversation into the local transcript store: open it in the
+   * sidebar, scrape its history, and import it (idempotent by title).
+   */
+  async recoverWebConversation(title: string): Promise<{ ok: boolean; chatId?: string; title?: string; created?: boolean; error?: string }> {
+    if (this.page === undefined) {
+      try {
+        await this.ensureBrowser()
+      } catch (error) {
+        return { ok: false, error: String(error) }
+      }
+    }
+    if (await this.isLoggedIn() !== true) {
+      return { ok: false, error: '尚未登录 DeepSeek 网页端' }
+    }
+    try {
+      const clicked = await this.clickConversationByTitle(title)
+      if (!clicked) return { ok: false, error: `未在网页端找到会话「${title}」` }
+      await this.page!.waitForTimeout(1_500)
+      const scraped = await this.scrapeConversation()
+      if (scraped.length === 0) return { ok: false, error: '读取网页会话历史失败（页面可能已改版）' }
+      const messages = this.scrapedToMessages(scraped)
+      const model = this.deepThink ? 'deepseek-reasoner' : 'deepseek-chat'
+      const result = this.store.importTranscript({ title, model, messages })
+      return { ok: true, chatId: result.chat.id, title: result.chat.title, created: result.created }
+    } catch (error) {
+      return { ok: false, error: String(error) }
+    }
+  }
+
   /** Detect whether the page is currently generating (stop affordance visible). */
   private async isGenerating(): Promise<boolean> {
     if (this.page === undefined) return false

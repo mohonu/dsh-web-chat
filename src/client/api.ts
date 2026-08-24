@@ -79,4 +79,12 @@ export class WebChatApi {
   clearChats(): Promise<EndpointResult<{ ok: boolean; count?: number }>> {
     return request<{ ok: boolean; count?: number }>(WEBChat_API.clearChats)
   }
+
+  webChats(): Promise<EndpointResult<{ ok: boolean; web: Array<{ title: string }>; missing: string[] }>> {
+    return request<{ ok: boolean; web: Array<{ title: string }>; missing: string[] }>(WEBChat_API.webChats)
+  }
+
+  recover(title: string): Promise<EndpointResult<{ ok: boolean; chatId?: string; title?: string; created?: boolean }>> {
+    return request<{ ok: boolean; chatId?: string; title?: string; created?: boolean }>(WEBChat_API.recover, { title })
+  }
 }

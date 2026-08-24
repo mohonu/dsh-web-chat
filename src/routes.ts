@@ -236,6 +236,32 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
     },
     {
       kind: 'exact',
+      path: '/api/dsh-webchat/web-chats',
+      handler: async (req, res) => {
+        if (!guard(req, res)) return
+        const web = await engine.listWebConversations()
+        const localTitles = new Set(store.titles())
+        const missing = web.filter(item => !localTitles.has(item.title)).map(item => item.title)
+        writeJson(res, 200, { ok: true, web, missing })
+      },
+    },
+    {
+      kind: 'exact',
+      path: '/api/dsh-webchat/recover',
+      handler: async (req, res) => {
+        if (!guard(req, res)) return
+        const body = await readJsonBody(req)
+        const title = stringField(body, 'title')
+        if (title === undefined) {
+          writeJson(res, 400, { ok: false, error: '缺少 title 字段' })
+          return
+        }
+        const result = await engine.recoverWebConversation(title)
+        writeJson(res, result.ok ? 200 : 500, result)
+      },
+    },
+    {
+      kind: 'exact',
       path: '/api/dsh-webchat/rename',
       handler: async (req, res) => {
         if (!guard(req, res)) return
