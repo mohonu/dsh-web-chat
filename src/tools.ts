@@ -13,6 +13,18 @@ import type { DeepSeekWebEngine } from './engine/engine.ts'
 import type { TranscriptStore } from './store.ts'
 import { renderTranscriptMarkdown, transferToHarnessSession } from './transfer.ts'
 import type { DistillConfig } from './transfer.ts'
+import type { WebChatErrorCode } from './protocol.ts'
+
+/** Actionable hint for a structured engine error code (surfaced to the agent). */
+function errorCodeHint(code: WebChatErrorCode | undefined): string {
+  switch (code) {
+    case 'NEED_LOGIN': return '需要先登录：请在插件面板点击「打开登录窗口」完成 DeepSeek 网页登录。'
+    case 'PAGE_CHANGED': return '页面/协议疑似改版：请升级 dsh-webchat 插件。'
+    case 'TIMEOUT': return '生成超时：可稍后重试。'
+    case 'NETWORK': return '网络/浏览器错误：请检查网络或浏览器是否可用。'
+    default: return ''
+  }
+}
 
 /** One text content block (the only render shape these tools emit). */
 function text(value: string): ContentBlock[] {
@@ -93,14 +105,17 @@ export function webChatSendTool(engine: DeepSeekWebEngine) {
         properties: {
           reply: { type: 'string', required: true },
           error: { type: 'string' },
+          code: { type: 'string' },
           partial: { type: 'boolean' },
         },
       },
-      render: (_args, value: { reply?: string; error?: string; partial?: boolean }) => {
+      render: (_args, value: { reply?: string; error?: string; code?: string; partial?: boolean }) => {
         const partial = value.partial === true
+        const hint = errorCodeHint(value.code as WebChatErrorCode | undefined)
         return text([
           `webchat_send: 已通过 DeepSeek 网页端发送并收到回复${partial ? '（生成可能不完整）' : ''}`,
           value.error !== undefined ? `（注意：${value.error}）` : '',
+          hint !== '' ? `（${hint}）` : '',
           '',
           '--- 网页端回复 ---',
           (value.reply ?? '').trim() === '' ? '（空回复）' : (value.reply ?? '').trim(),
@@ -110,13 +125,14 @@ export function webChatSendTool(engine: DeepSeekWebEngine) {
         ].join('\n'))
       },
     },
-    async execute(args: { text?: string }): Promise<{ reply: string; error?: string; partial: boolean }> {
+    async execute(args: { text?: string }): Promise<{ reply: string; error?: string; code?: string; partial: boolean }> {
       const textValue = typeof args?.text === 'string' ? args.text.trim() : ''
       if (textValue === '') return { reply: '', error: '缺少 text 参数', partial: false }
       const result = await engine.send(textValue)
       return {
         reply: result.reply ?? '',
         error: result.error,
+        code: result.code,
         partial: result.error !== undefined,
       }
     },

@@ -25,7 +25,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { chromium, type BrowserContext, type Page } from 'playwright-core'
 import type { TranscriptStore } from '../store.ts'
-import type { EngineState, SendResult, WebChatMessage, WebChatTranscript } from '../protocol.ts'
+import type { EngineState, SendResult, WebChatErrorCode, WebChatMessage, WebChatTranscript } from '../protocol.ts'
 import { serializeToMarkdown } from './html-md.ts'
 
 /** Engine configuration (resolved from the plugin settings surface). */
@@ -63,7 +63,14 @@ const DEFAULT_TIMEOUT_MS = 180_000
  * The function must stay self-contained (playwright serializes its source).
  */
 function streamCaptureInit(): void {
-  const w = window as unknown as { __wcCaptureInstalled?: boolean; __wcStream?: StreamCapture; XMLHttpRequest: typeof XMLHttpRequest }
+  const w = window as unknown as {
+    __wcCaptureInstalled?: boolean
+    __wcStream?: StreamCapture
+    XMLHttpRequest: typeof XMLHttpRequest
+    fetch: typeof fetch
+    TextDecoder: typeof TextDecoder
+    Response: typeof Response
+  }
   if (w.__wcCaptureInstalled === true) return
   w.__wcCaptureInstalled = true
   w.__wcStream = { text: '', done: false, started: false, status: 0, error: '' }
@@ -99,6 +106,55 @@ function streamCaptureInit(): void {
     }
     return origSend.apply(this, args)
   }
+
+  // Also tee `fetch` — newer page builds may switch from XHR to fetch for the
+  // same /chat/completion stream. response.body.tee() mirrors the stream to the
+  // page untouched while we read the twin for capture. A capture failure must
+  // never break the page's own consumption, so every step is try/caught.
+  const origFetch: any = w.fetch.bind(w)
+  w.fetch = function (this: any, input: any, init: any) {
+    const url = typeof input === 'string' ? input : (input?.url ?? String(input))
+    const isChat = typeof url === 'string' && url.includes('/chat/completion')
+    return origFetch(input, init).then((response: any) => {
+      if (!isChat || response === null || response === undefined) return response
+      const body = response.body
+      if (body === null || body === undefined || typeof body.tee !== 'function') return response
+      try {
+        const [pageStream, captureStream] = body.tee()
+        const decoder = new w.TextDecoder()
+        const reader = captureStream.getReader()
+        void (async () => {
+          try {
+            for (;;) {
+              const { done, value } = await reader.read()
+              if (done) break
+              const stream = w.__wcStream
+              if (stream !== undefined) {
+                stream.text += decoder.decode(value, { stream: true })
+                stream.started = true
+              }
+            }
+            const stream = w.__wcStream
+            if (stream !== undefined) {
+              stream.text += decoder.decode()
+              stream.done = true
+              stream.status = response.status
+              if (response.status >= 400) stream.error = `HTTP ${response.status}`
+            }
+          } catch {
+            // capture failure must never break the page's own consumption
+          }
+        })()
+        return new w.Response(pageStream, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        })
+      } catch {
+        return response
+      }
+    })
+  }
 }
 
 /** Live capture buffer shape (mirrors window.__wcStream). */
@@ -111,7 +167,7 @@ interface StreamCapture {
 }
 
 /** Parsed reply from the accumulated SSE text. */
-interface ParsedStreamReply {
+export interface ParsedStreamReply {
   /** Markdown body (thinking wrapped in a <details> block). */
   markdown: string
   /** Raw thinking text (empty when the model has none). */
@@ -172,7 +228,7 @@ function isThinkingType(type: unknown): boolean {
  *     markers.
  *   - {"p":"response/status","o":"SET","v":"FINISHED"} — generation complete.
  */
-function parseStreamReply(raw: string): ParsedStreamReply {
+export function parseStreamReply(raw: string): ParsedStreamReply {
   let body = ''
   let thinking = ''
   let finished = false
@@ -390,6 +446,7 @@ export class DeepSeekWebEngine {
   private engineError: string | undefined
   private busy = false
   private lastError: string | undefined
+  private lastErrorCode: WebChatErrorCode | undefined
   private launchedOnce = false
   /** True while a headed one-time login window is open (auto-closes on login). */
   private loginMode = false
@@ -420,6 +477,16 @@ export class DeepSeekWebEngine {
 
   getLastError(): string | undefined {
     return this.lastError
+  }
+
+  getLastErrorCode(): WebChatErrorCode | undefined {
+    return this.lastErrorCode
+  }
+
+  /** Set the last error + its structured code together (keeps them in sync). */
+  private setLastError(message: string | undefined, code?: WebChatErrorCode): void {
+    this.lastError = message
+    this.lastErrorCode = code
   }
 
   private setState(next: EngineState, error?: string): void {
@@ -785,17 +852,21 @@ export class DeepSeekWebEngine {
   }
 
   private async sendImpl(text: string, wait: boolean): Promise<SendResult> {
-    this.lastError = undefined
+    this.setLastError(undefined)
     if (this.page === undefined) {
       try {
         await this.ensureBrowser()
       } catch (error) {
-        return { ok: false, error: String(error) }
+        const message = String(error)
+        this.setLastError(message, 'NETWORK')
+        return { ok: false, error: message, code: 'NETWORK' }
       }
     }
     const loggedIn = await this.isLoggedIn()
     if (loggedIn !== true) {
-      return { ok: false, error: '尚未登录 DeepSeek 网页端。请在插件面板点击「打开登录窗口」，在弹出的浏览器中完成登录后重试。' }
+      const message = '尚未登录 DeepSeek 网页端。请在插件面板点击「打开登录窗口」，在弹出的浏览器中完成登录后重试。'
+      this.setLastError(message, 'NEED_LOGIN')
+      return { ok: false, error: message, code: 'NEED_LOGIN' }
     }
     try {
       const chat = this.store.ensureActiveChat(this.deepThink ? 'deepseek-reasoner' : 'deepseek-chat')
@@ -832,7 +903,7 @@ export class DeepSeekWebEngine {
       return result
     } catch (error) {
       const message = `发送失败：${String(error)}`
-      this.lastError = message
+      this.setLastError(message)
       return { ok: false, error: message }
     }
   }
@@ -850,6 +921,7 @@ export class DeepSeekWebEngine {
     const timeout = this.config.replyTimeoutMs ?? DEFAULT_TIMEOUT_MS
     let replyMarkdown = ''
     let replyError: string | undefined
+    let replyCode: WebChatErrorCode | undefined
     let domStable = 0
     let lastDom = ''
 
@@ -874,9 +946,12 @@ export class DeepSeekWebEngine {
 
     try {
       await this.page.waitForTimeout(700)
+      let captureSeen = false
+      let captureCompleted = false
       while (Date.now() - started < timeout) {
         const capture = await readCapture()
         if (capture !== null && capture.started) {
+          captureSeen = true
           // Primary: parse the teed SSE stream.
           const parsed = parseStreamReply(capture.text)
           if (parsed.markdown !== '') {
@@ -886,9 +961,13 @@ export class DeepSeekWebEngine {
               streaming: !(capture.done || parsed.finished),
             })
           }
-          if (capture.done || parsed.finished) break
+          if (capture.done || parsed.finished) {
+            captureCompleted = true
+            break
+          }
           if (capture.error !== '') {
             replyError = capture.error
+            replyCode = 'NETWORK'
             break
           }
         } else {
@@ -910,21 +989,28 @@ export class DeepSeekWebEngine {
         }
         await this.page.waitForTimeout(350)
       }
-      if (replyMarkdown === '' && Date.now() - started >= timeout) {
-        replyError = '等待回复超时（未捕获到网页回复流；可能未登录或页面结构已变化）'
-      } else if (Date.now() - started >= timeout) {
+      if (replyMarkdown === '' && replyCode === undefined) {
+        if (captureSeen && captureCompleted) {
+          replyError = '页面协议疑似改版：已捕获到回复流但无法解析出内容，请升级 dsh-webchat 插件'
+          replyCode = 'PAGE_CHANGED'
+        } else {
+          replyError = '等待回复超时（未捕获到网页回复流；可能未登录或页面结构已变化）'
+          replyCode = 'TIMEOUT'
+        }
+      } else if (replyCode === undefined && Date.now() - started >= timeout) {
         replyError = '生成超时，已返回部分内容'
+        replyCode = 'TIMEOUT'
       }
       this.store.upsertMessage(chatId, {
         id: assistantId, role: 'assistant', content: replyMarkdown, ts: Date.now(),
         streaming: false, error: replyError,
       })
       this.store.setStreaming(chatId, false)
-      if (replyError !== undefined) this.lastError = replyError
-      return { ok: replyError === undefined, chatId, reply: replyMarkdown, error: replyError }
+      if (replyError !== undefined) this.setLastError(replyError, replyCode)
+      return { ok: replyError === undefined, chatId, reply: replyMarkdown, error: replyError, code: replyCode }
     } catch (error) {
       const message = `生成过程中断：${String(error)}`
-      this.lastError = message
+      this.setLastError(message)
       this.store.upsertMessage(chatId, {
         id: assistantId, role: 'assistant', content: replyMarkdown, ts: Date.now(),
         streaming: false, error: message,
@@ -1053,6 +1139,7 @@ export class DeepSeekWebEngine {
     search: boolean
     busy: boolean
     lastError?: string
+    lastErrorCode?: WebChatErrorCode
   }> {
     // Self-heal: if the browser was up but the page died (e.g. the user closed
     // the window), relaunch so the panel reconnects. Explicit disposeBrowser()
@@ -1076,6 +1163,7 @@ export class DeepSeekWebEngine {
       search: this.search,
       busy: this.busy,
       lastError: this.lastError,
+      lastErrorCode: this.lastErrorCode,
     }
   }
 }

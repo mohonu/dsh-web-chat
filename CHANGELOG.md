@@ -11,11 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Transfer target workspace**: the "Transfer to Harness" panel and the `webchat_transfer` tool now let you pick a target workspace (or leave the new session ungrouped). The transferred session is created with the workspace's canonical path as its working directory and attached to the workspace's account, so it is grouped under that workspace in the sidebar instead of "Ungrouped".
 - **Workspace listing in `webchat_status`**: the status tool now reports the harness workspaces (`id | title | path`) available as `webchat_transfer` targets.
-- **Unit tests** for the transfer workspace-resolution and attach logic (`test/transfer.test.ts`, `pnpm test`).
+- **Dual-channel reply capture**: the injected capture now tees both `XMLHttpRequest` and `fetch` for the `/chat/completion` stream, so replies keep streaming even if the page switches from XHR to `fetch` (DOM scraping remains the last-resort fallback).
+- **Structured error codes**: send results and state now carry a `code` (`NEED_LOGIN` / `PAGE_CHANGED` / `TIMEOUT` / `NETWORK`) so the panel and `webchat_send` can act on a failure — prompt the login window vs. suggest a plugin upgrade — instead of only printing a generic timeout.
+- **Parser unit tests**: fixtures pin the SSE ops protocol shapes (`test/parse-stream.test.ts`) — snapshot, fragment append, content delta, search/TOOL_OPEN steps, citation resolution, and malformed streams.
 
 ### Changed
 
 - `webchat_transfer` accepts optional `workspaceId` and `cwd` parameters.
+- `webchat_send` reports a structured `code` alongside its error for actionable handling.
 
 ## [0.1.0] - 2026-08-20
 

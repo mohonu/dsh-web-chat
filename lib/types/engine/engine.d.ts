@@ -21,7 +21,7 @@
  */
 import { type Page } from 'playwright-core';
 import type { TranscriptStore } from '../store.ts';
-import type { EngineState, SendResult } from '../protocol.ts';
+import type { EngineState, SendResult, WebChatErrorCode } from '../protocol.ts';
 /** Engine configuration (resolved from the plugin settings surface). */
 export interface WebChatEngineConfig {
     /** Data dir root (browser profile lives under it). */
@@ -39,6 +39,36 @@ export interface WebChatEngineConfig {
     /** DeepSeek web origin. */
     baseUrl?: string;
 }
+/** Parsed reply from the accumulated SSE text. */
+export interface ParsedStreamReply {
+    /** Markdown body (thinking wrapped in a <details> block). */
+    markdown: string;
+    /** Raw thinking text (empty when the model has none). */
+    thinking: string;
+    /** True once the stream reported FINISHED. */
+    finished: boolean;
+}
+/**
+ * Parse the accumulated `/api/v0/chat/completion` SSE body into reply text.
+ * The stream is `event:` / `data:` lines; each `data:` payload is JSON. The
+ * protocol distinguishes the R1 reasoning fragment (type `THINK`) from the
+ * answer fragment (type `RESPONSE`), and carries search steps as `TOOL_SEARCH`
+ * / `TOOL_OPEN` fragments:
+ *   - {"v":{"response":{"fragments":[{"type":"THINK","content":"…"}]}}}
+ *     a snapshot carrying the fragment list and their types.
+ *   - {"p":"response/fragments","o":"APPEND","v":[{"type":"RESPONSE",…}]}
+ *     appends a NEW fragment (reasoning / search / answer); `-1/content`
+ *     deltas after this belong to that new fragment.
+ *   - {"p":"response/fragments/-1/content","o":"APPEND","v":"是一座"} — appends
+ *     a text delta to the CURRENT fragment's content.
+ *   - {"p":"response/fragments/-1/results","o":"SET","v":[…]} — search results
+ *     for a TOOL_SEARCH step (rendered as "搜索到 N 个网页").
+ *   - {"v":"将"} — a bare delta continuing the current fragment; a bare
+ *     `{"v":[{p:"content",o:"APPEND",v:"[reference:N]"},…]}` carries citation
+ *     markers.
+ *   - {"p":"response/status","o":"SET","v":"FINISHED"} — generation complete.
+ */
+export declare function parseStreamReply(raw: string): ParsedStreamReply;
 export declare class DeepSeekWebEngine {
     private readonly store;
     private readonly config;
@@ -50,6 +80,7 @@ export declare class DeepSeekWebEngine {
     private engineError;
     private busy;
     private lastError;
+    private lastErrorCode;
     private launchedOnce;
     /** True while a headed one-time login window is open (auto-closes on login). */
     private loginMode;
@@ -64,6 +95,9 @@ export declare class DeepSeekWebEngine {
     getEngineError(): string | undefined;
     getBusy(): boolean;
     getLastError(): string | undefined;
+    getLastErrorCode(): WebChatErrorCode | undefined;
+    /** Set the last error + its structured code together (keeps them in sync). */
+    private setLastError;
     private setState;
     /** Resolve a browser launch descriptor (executable + args). */
     private launchOptions;
@@ -169,6 +203,7 @@ export declare class DeepSeekWebEngine {
         search: boolean;
         busy: boolean;
         lastError?: string;
+        lastErrorCode?: WebChatErrorCode;
     }>;
 }
 export interface MarkupNode {

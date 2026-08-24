@@ -88,6 +88,7 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
       search: status.search,
       busy: status.busy,
       lastError: status.lastError,
+      lastErrorCode: status.lastErrorCode,
       activeChatId: store.activeChat()?.id,
       chats: store.list(),
     }
