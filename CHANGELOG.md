@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Parser unit tests**: fixtures pin the SSE ops protocol shapes (`test/parse-stream.test.ts`) — snapshot, fragment append, content delta, search/TOOL_OPEN steps, citation resolution, and malformed streams.
 - **Image input (multimodal)**: `webchat_send` and the panel composer can attach local images (absolute paths) to a prompt; the engine uploads them through the page's file input and records them in the transcript.
 - **Web conversation recovery/sync**: `webchat_recover` and the panel "从网页恢复" button list the web-side conversations missing locally and import one (idempotent by title); `webchat_status` now lists web conversations and flags the unimported ones.
+- **Continue into an existing session**: `webchat_transfer` (and the panel "延续到会话" picker) can append the distilled brief as a fresh user message to an existing harness session (`targetSessionId`) instead of always creating a new one — multi-round "same task, another web round" resume.
 
 ### Changed
 

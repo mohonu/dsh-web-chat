@@ -5,9 +5,10 @@ A "Codex ChatGPT mode" plugin for [DeepSeek Harness](https://github.com/deepseek
 ## Features
 
 - **Web chat** over your DeepSeek web login, with streaming replies and "Deep Think (R1)" / "Web Search" toggles.
-- **Transfer to Harness**: distill the current conversation into a task brief and open it as a new harness session to continue development; pick a target workspace (or leave it ungrouped).
+- **Transfer to Harness**: distill the current conversation into a task brief and open it as a new harness session to continue development, or "continue into" an existing session (append the brief as a new message); pick a target workspace (or leave it ungrouped).
+- **Recover web conversations**: pull web-side conversations not yet stored locally into the local store (panel "Recover from web" / `webchat_recover`).
 - **Import as context**: export a stored web conversation to markdown.
-- **Agent tools**: `webchat_status`, `webchat_send`, `webchat_import`, `webchat_transfer` — the harness agent can chat via the web, inspect transcripts, list workspaces, and transfer a conversation into a new session (optionally into a target workspace).
+- **Agent tools**: `webchat_status`, `webchat_send`, `webchat_recover`, `webchat_import`, `webchat_transfer` — the harness agent can chat via the web, inspect transcripts, list workspaces and web conversations, and transfer a conversation into a new or existing session (optionally into a target workspace).
 - **Hands-free login**: first use opens a visible browser window for login, which auto-closes afterward; chat then runs headless.
 
 ## Install

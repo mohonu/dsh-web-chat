@@ -17,7 +17,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
-import { renderTranscriptMarkdown, transferToHarnessSession } from '../src/transfer.ts'
+import { renderTranscriptMarkdown, transcriptUserMessageEvent, transferToHarnessSession } from '../src/transfer.ts'
 import type { WebChatTranscript } from '../src/protocol.ts'
 
 const transcript: WebChatTranscript = {
@@ -144,6 +144,50 @@ test('workspace.path 转移：realpath 规范化后 resolveByPath 并 attach', a
   assert.equal(result.workspaceId, 'ws-2')
   assert.equal(ws._calls.length, 1)
   assert.ok(persistence.created[0]!.cwd.startsWith('/'), 'cwd 应为绝对路径')
+})
+
+test('transcriptUserMessageEvent 携带指定 seq 与 surfaceOp', () => {
+  const event = transcriptUserMessageEvent('hello', 7)
+  assert.equal(event.type, 'user/message')
+  assert.equal(event.seq, 7)
+  assert.equal(event.surfaceOp, 'append')
+  assert.equal(event.data.role, 'user')
+  assert.match((event.data.content[0] as { text: string }).text, /hello/)
+})
+
+test('targetSessionId 延续：追加 open turn + user message，不新建会话', async () => {
+  const stored = [{ type: 'turn/end', seq: 4, time: 1, data: { turn: 1, reason: { kind: 'completed' } } }]
+  const appended: unknown[] = []
+  const persistence = {
+    load: async () => ({ meta: {}, events: stored }),
+    append: async (_id: unknown, events: unknown) => { appended.push(events) },
+  }
+  const ctx = makeCtx(undefined, persistence)
+
+  const result = await transferToHarnessSession(ctx, { transcript, targetSessionId: 'session-existing' }, NO_DISTILL)
+
+  assert.equal(result.sessionId, 'session-existing')
+  assert.equal(result.attached, false)
+  assert.equal(result.distilled, false)
+  const events = appended[0] as Array<{ type: string; seq: number; surfaceOp?: string; data?: { turn?: number; step?: number } }>
+  assert.equal(events.length, 3)
+  assert.equal(events[0]!.type, 'turn/start')
+  assert.equal(events[0]!.seq, 5)
+  assert.equal(events[0]!.data?.turn, 2)
+  assert.equal(events[1]!.type, 'step/start')
+  assert.equal(events[1]!.seq, 6)
+  assert.equal(events[1]!.data?.step, 1)
+  assert.equal(events[2]!.type, 'user/message')
+  assert.equal(events[2]!.seq, 7)
+  assert.equal(events[2]!.surfaceOp, 'append')
+})
+
+test('targetSessionId 延续：无持久化后端时抛错', async () => {
+  const ctx = makeCtx(undefined, undefined)
+  await assert.rejects(
+    transferToHarnessSession(ctx, { transcript, targetSessionId: 'session-x' }, NO_DISTILL),
+    /持久化后端/,
+  )
 })
 
 test('renderTranscriptMarkdown 标注图片附件', () => {

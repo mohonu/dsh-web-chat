@@ -186,11 +186,11 @@ export async function distillTranscriptToBrief(ctx: Context, transcript: WebChat
   return { brief, provider: target.provider, model: target.model }
 }
 
-/** Build the seed user-message event carrying the handoff text. */
-export function transcriptSeedEvent(markdown: string): SessionEvent<'user/message'> {
+/** Build a user-message surface event carrying the handoff text at a given seq. */
+export function transcriptUserMessageEvent(markdown: string, seq: number): SessionEvent<'user/message'> {
   return {
     type: 'user/message',
-    seq: 0,
+    seq,
     time: Date.now(),
     // Surface events must declare how they entered the ordered surface; a
     // seeded user prompt appends to the tail.
@@ -202,6 +202,11 @@ export function transcriptSeedEvent(markdown: string): SessionEvent<'user/messag
       source: { kind: 'plugin', plugin: 'webchat' },
     },
   }
+}
+
+/** Build the seed user-message event carrying the handoff text (seq 0). */
+export function transcriptSeedEvent(markdown: string): SessionEvent<'user/message'> {
+  return transcriptUserMessageEvent(markdown, 0)
 }
 
 /**
@@ -259,6 +264,12 @@ export interface TransferToSessionInput {
   cwd?: string
   /** Target workspace; when set, the session is grouped under it (attached). */
   workspace?: TransferWorkspaceTarget
+  /**
+   * Existing harness session to CONTINUE instead of creating a new one. When
+   * set, the distilled brief (or raw transcript) is appended as a fresh user
+   * message to that session rather than seeding a new session.
+   */
+  targetSessionId?: string
 }
 
 /** Resolved transfer destination: the session cwd plus an optional owning workspace. */
@@ -319,6 +330,45 @@ async function resolveTransferTarget(ctx: Context, input: TransferToSessionInput
 }
 
 /**
+ * Continue an EXISTING harness session by appending the handoff as a fresh
+ * user message — the "same task, another web round" resume path. The session's
+ * stored log is loaded (which also durably closes any crash-orphaned turn) to
+ * learn the next contiguous seq and turn number, then an open turn is appended
+ * carrying the message; the resume loop closes the open turn and claims the
+ * message as pending input, exactly like a queued user prompt. No new session
+ * or header is created, so the target keeps its cwd/title/workspace.
+ */
+async function appendToExistingSession(ctx: Context, sessionId: string, markdown: string, distilled: boolean): Promise<TransferToSessionResult> {
+  const persistence = ctx.get('sessionPersistence')
+  if (persistence === undefined) {
+    throw new Error('未找到会话持久化后端，无法延续已有会话')
+  }
+  const id = SessionId(sessionId)
+  const inspection = await persistence.load(id)
+
+  let nextSeq = 0
+  let maxTurn = 0
+  for (const event of inspection.events) {
+    if (event.seq >= nextSeq) nextSeq = event.seq + 1
+    const turn = (event as { data?: { turn?: number } }).data?.turn
+    if (typeof turn === 'number' && turn > maxTurn) maxTurn = turn
+  }
+  const turn = maxTurn + 1
+  const now = Date.now()
+
+  // Open a turn + step and enter the user message, leaving both open so the
+  // resume path closes them (`turn/end` interrupted) and claims the message.
+  const appended: SessionEvent[] = [
+    { type: 'turn/start', seq: nextSeq, time: now, data: { turn } },
+    { type: 'step/start', seq: nextSeq + 1, time: now, data: { turn, step: 1 } },
+    transcriptUserMessageEvent(markdown, nextSeq + 2),
+  ]
+  await persistence.append(id, appended)
+
+  return { sessionId, distilled, attached: false }
+}
+
+/**
  * Create a new COLD harness session seeded with a distilled task brief (or the
  * raw transcript when the user chooses 'raw' / distillation is unavailable),
  * written straight through the session-persistence backend so the GUI lists it
@@ -331,7 +381,6 @@ async function resolveTransferTarget(ctx: Context, input: TransferToSessionInput
  * default (`transferDistill`) applies.
  */
 export async function transferToHarnessSession(ctx: Context, input: TransferToSessionInput, config: DistillConfig, mode?: TransferMode): Promise<TransferToSessionResult> {
-  const target = await resolveTransferTarget(ctx, input)
   const rawMarkdown = renderTranscriptMarkdown(input.transcript, { excludeThinking: true })
 
   const shouldDistill = mode === 'distill' ? true : mode === 'raw' ? false : config.distill
@@ -345,6 +394,12 @@ export async function transferToHarnessSession(ctx: Context, input: TransferToSe
     }
   }
 
+  // Continue an existing session instead of creating a new one.
+  if (input.targetSessionId !== undefined && input.targetSessionId !== '') {
+    return appendToExistingSession(ctx, input.targetSessionId, seedMarkdown, distilled)
+  }
+
+  const target = await resolveTransferTarget(ctx, input)
   const id = SessionId(`session-${randomUUID()}`)
   const createdAt = Date.now()
   const header: SessionHeader = { version: SESSION_FORMAT_VERSION, id, createdAt, cwd: target.cwd, delegationDepth: 0 }

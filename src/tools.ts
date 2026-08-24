@@ -211,11 +211,12 @@ export function webChatImportTool(store: TranscriptStore) {
 export function webChatTransferTool(hostCtx: Context, store: TranscriptStore, distill: DistillConfig) {
   return defineTool({
     name: 'webchat_transfer',
-    description: 'Transfer a stored DeepSeek 网页端 transcript into harness mode: distills the web conversation into an executable task brief (goal, established context, current state, next steps) and creates a NEW harness session whose first message is that brief (not the raw chat log). Optionally target a workspace (workspaceId from webchat_status workspaces list) so the session is grouped under it; omit for an ungrouped session. Returns the new session id. Triggers: 转移到 harness, 转成开发会话, transfer webchat.',
+    description: 'Transfer a stored DeepSeek 网页端 transcript into harness mode: distills the web conversation into an executable task brief (goal, established context, current state, next steps) and creates a NEW harness session whose first message is that brief (not the raw chat log), OR appends it as a fresh user message to an EXISTING session via targetSessionId (continue the same task). Optionally target a workspace (workspaceId from webchat_status workspaces list) so the new session is grouped under it. Returns the (new or target) session id. Triggers: 转移到 harness, 转成开发会话, transfer webchat.',
     parameters: {
       chatId: { type: 'string', description: 'Transcript id (from webchat_status). Omit for the active chat.' },
-      workspaceId: { type: 'string', description: 'Optional target workspace id (from the workspaces list in webchat_status). Omit to leave the new session ungrouped.' },
-      cwd: { type: 'string', description: 'Optional absolute working directory for the new session; ignored when workspaceId is given.' },
+      targetSessionId: { type: 'string', description: 'Optional existing harness session id to CONTINUE (append the brief as a new user message) instead of creating a new session. Omit to create a new session.' },
+      workspaceId: { type: 'string', description: 'Optional target workspace id (from the workspaces list in webchat_status). Omit to leave the new session ungrouped. Ignored when targetSessionId is given.' },
+      cwd: { type: 'string', description: 'Optional absolute working directory for the new session; ignored when workspaceId or targetSessionId is given.' },
     },
     output: {
       schema: {
@@ -225,26 +226,31 @@ export function webChatTransferTool(hostCtx: Context, store: TranscriptStore, di
           sessionId: { type: 'string', required: true },
           distilled: { type: 'boolean' },
           attached: { type: 'boolean' },
+          continued: { type: 'boolean' },
           workspaceId: { type: 'string' },
           error: { type: 'string' },
         },
       },
-      render: (_args, value: { sessionId?: string; distilled?: boolean; attached?: boolean; workspaceId?: string; error?: string }) => {
+      render: (_args, value: { sessionId?: string; distilled?: boolean; attached?: boolean; continued?: boolean; workspaceId?: string; error?: string }) => {
         if (value.error !== undefined) return text(value.error)
         const note = value.distilled === true ? '（已蒸馏为任务简报）' : '（蒸馏不可用，已回退为原始对话记录）'
+        if (value.continued === true) {
+          return text(`webchat_transfer: 已把网页对话作为新的用户消息延续到 harness 会话 ${value.sessionId ?? ''}${note}。请告知用户打开该会话继续开发。`)
+        }
         const where = value.workspaceId !== undefined ? `已归入工作区 ${value.workspaceId}` : '未分组'
         return text(`webchat_transfer: 已创建新 harness 会话 ${value.sessionId ?? ''}${note}（${where}）。请告知用户从侧边栏打开该会话继续开发。`)
       },
     },
-    async execute(args: { chatId?: string; workspaceId?: string; cwd?: string }): Promise<{ sessionId: string; distilled: boolean; attached: boolean; workspaceId?: string; error?: string }> {
+    async execute(args: { chatId?: string; targetSessionId?: string; workspaceId?: string; cwd?: string }): Promise<{ sessionId: string; distilled: boolean; attached: boolean; continued?: boolean; workspaceId?: string; error?: string }> {
       const chat = typeof args?.chatId === 'string' ? store.getChat(args.chatId) : store.activeChat()
       if (chat === undefined) return { sessionId: '', distilled: false, attached: false, error: 'webchat_transfer: 找不到对话记录（用 webchat_status 查看列表）' }
-      const workspace = typeof args?.workspaceId === 'string' && args.workspaceId !== '' ? { workspaceId: args.workspaceId } : undefined
+      const targetSessionId = typeof args?.targetSessionId === 'string' && args.targetSessionId !== '' ? args.targetSessionId : undefined
+      const workspace = targetSessionId === undefined && typeof args?.workspaceId === 'string' && args.workspaceId !== '' ? { workspaceId: args.workspaceId } : undefined
       try {
-        const { sessionId, distilled, attached, workspaceId } = await transferToHarnessSession(hostCtx, { transcript: chat, cwd: args?.cwd, workspace }, distill)
-        return { sessionId, distilled, attached, workspaceId }
+        const { sessionId, distilled, attached, workspaceId } = await transferToHarnessSession(hostCtx, { transcript: chat, cwd: args?.cwd, workspace, targetSessionId }, distill)
+        return { sessionId, distilled, attached, continued: targetSessionId !== undefined, workspaceId }
       } catch (error) {
-        return { sessionId: '', distilled: false, attached: false, error: `webchat_transfer: 创建会话失败 — ${String(error)}` }
+        return { sessionId: '', distilled: false, attached: false, continued: targetSessionId !== undefined, error: `webchat_transfer: 转移失败 — ${String(error)}` }
       }
     },
   })

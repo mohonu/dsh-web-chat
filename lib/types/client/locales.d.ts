@@ -33,6 +33,9 @@ export declare const zh: {
     readonly 'transfer.workspace.hint': "转移到所选工作区；未分组则不归入任何工作区";
     readonly 'transfer.workspace.created': "已创建并选中工作区 {title}";
     readonly 'transfer.workspace.createFailed': "创建工作区失败：{error}";
+    readonly 'transfer.session.label': "延续到会话";
+    readonly 'transfer.session.hint': "选择已有 harness 会话以延续（把简报作为新消息追加）；默认新建会话";
+    readonly 'transfer.session.new': "新建会话";
     readonly 'transfer.attached.failed': "会话已创建（{sessionId}），但归入工作区失败，现为未分组";
     readonly 'handoff.eyebrow': "交付到 Harness";
     readonly 'toggle.deepThink': "深度思考";
@@ -70,6 +73,7 @@ export declare const zh: {
     readonly 'empty.title': "先聊，再交付";
     readonly 'empty.body': "登录网页端即可开始对话；任何对话都能蒸馏成任务简报，转入 Harness 会话继续开发。";
     readonly 'transfer.done': "已创建 Harness 会话 {sessionId}，正在为你打开…";
+    readonly 'transfer.continued': "已延续 Harness 会话 {sessionId}，正在为你打开…";
     readonly 'transfer.failed': "转移到 Harness 失败：{error}";
     readonly 'export.done': "已导出到工作区文件：{filePath}";
     readonly 'export.failed': "导出失败：{error}";
@@ -110,6 +114,9 @@ export declare const en: {
     'transfer.workspace.hint': string;
     'transfer.workspace.created': string;
     'transfer.workspace.createFailed': string;
+    'transfer.session.label': string;
+    'transfer.session.hint': string;
+    'transfer.session.new': string;
     'transfer.attached.failed': string;
     'handoff.eyebrow': string;
     'toggle.deepThink': string;
@@ -147,6 +154,7 @@ export declare const en: {
     'empty.title': string;
     'empty.body': string;
     'transfer.done': string;
+    'transfer.continued': string;
     'transfer.failed': string;
     'export.done': string;
     'export.failed': string;

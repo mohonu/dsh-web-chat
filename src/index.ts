@@ -85,7 +85,7 @@ const DEFAULT_ANNOUNCE = true
 const SECTION_ORDER = 155
 
 /** Model-facing announcement: plugin presence, capabilities, and limits. */
-export const WEBCHAT_GUIDANCE = '本机已安装 dsh-webchat 插件（Codex ChatGPT 模式 · DeepSeek 网页端聊天）：侧边栏「网页聊天」入口；通过真实浏览器驱动 chat.deepseek.com（DeepSeek 网页模型，深度思考/智能搜索开关，网页登录会话，无需 API 额度）。能力：webchat_status 查看登录/会话状态、webchat_send 通过网页端发送消息并流式获取回复（可附带本地图片路径做多模态提问）、webchat_recover 把网页端已有会话同步/恢复到本地、webchat_import 把存储的网页对话导入为 markdown 上下文、webchat_transfer 把网页对话蒸馏成可执行任务简报并创建新 harness 会话（首条消息即任务简报，而非原始聊天记录）以便继续开发；GUI 面板可将对话随时导出为工作区文件或转入 harness 会话。限制：首次使用需用户在弹出的浏览器窗口完成 DeepSeek 网页登录；网页端受 DeepSeek 官方风控，操作失败或页面改版时返回错误而非崩溃；面板提供「深度思考（R1）」与「智能搜索」开关（网页端无模型选择器）。用户提到「网页聊天 / 网页端 / ChatGPT 模式 / deepseek web / 转移到 harness」时即指本插件，请据此协作。'
+export const WEBCHAT_GUIDANCE = '本机已安装 dsh-webchat 插件（Codex ChatGPT 模式 · DeepSeek 网页端聊天）：侧边栏「网页聊天」入口；通过真实浏览器驱动 chat.deepseek.com（DeepSeek 网页模型，深度思考/智能搜索开关，网页登录会话，无需 API 额度）。能力：webchat_status 查看登录/会话状态、webchat_send 通过网页端发送消息并流式获取回复（可附带本地图片路径做多模态提问）、webchat_recover 把网页端已有会话同步/恢复到本地、webchat_import 把存储的网页对话导入为 markdown 上下文、webchat_transfer 把网页对话蒸馏成可执行任务简报并创建新 harness 会话（首条消息即任务简报，而非原始聊天记录），或经 targetSessionId 把简报作为新消息追加到已有会话延续同一任务；GUI 面板可将对话随时导出为工作区文件或转入 harness 会话。限制：首次使用需用户在弹出的浏览器窗口完成 DeepSeek 网页登录；网页端受 DeepSeek 官方风控，操作失败或页面改版时返回错误而非崩溃；面板提供「深度思考（R1）」与「智能搜索」开关（网页端无模型选择器）。用户提到「网页聊天 / 网页端 / ChatGPT 模式 / deepseek web / 转移到 harness」时即指本插件，请据此协作。'
 
 /** Convert resolved config to engine config. */
 function engineConfigOf(resolve: () => Config): ConstructorParameters<typeof DeepSeekWebEngine>[1] {

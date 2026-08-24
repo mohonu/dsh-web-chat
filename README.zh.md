@@ -5,9 +5,10 @@
 ## 特性
 
 - **网页聊天**：复用 DeepSeek 网页端登录，流式获取回复，支持「深度思考（R1）」与「智能搜索」开关。
-- **转移到 Harness**：一键把当前网页对话蒸馏成任务简报（首条消息即简报）并创建新 harness 会话，继续开发；转移时可选择目标工作区（未选则归入「未分组」）。
+- **转移到 Harness**：一键把当前网页对话蒸馏成任务简报（首条消息即简报）并创建新 harness 会话继续开发，或「延续到已有会话」——把简报作为新消息追加进指定会话（多轮续入）；转移时可选择目标工作区（未选则归入「未分组」）。
+- **从网页恢复会话**：把网页端已存在但本地未收录的会话拉回本地存储（面板「从网页恢复」按钮 / `webchat_recover`）。
 - **导入为上下文**：把存储的网页对话导出为 markdown 上下文。
-- **Agent 工具**：`webchat_status` / `webchat_send` / `webchat_import` / `webchat_transfer`，harness agent 可直接调用；`webchat_status` 列出工作区，`webchat_transfer` 可指定目标工作区。
+- **Agent 工具**：`webchat_status` / `webchat_send` / `webchat_recover` / `webchat_import` / `webchat_transfer`，harness agent 可直接调用；`webchat_status` 列出工作区与网页会话，`webchat_transfer` 可指定目标工作区或目标会话（延续）。
 - **无感登录**：首次使用弹出可见浏览器窗口完成登录，登录后窗口自动关闭，后续聊天在无头浏览器中进行。
 
 ## 安装

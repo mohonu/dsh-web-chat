@@ -198,6 +198,7 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
         const chatId = stringField(body, 'chatId') ?? store.activeChat()?.id
         const cwd = stringField(body, 'cwd')
         const workspaceId = stringField(body, 'workspaceId')
+        const targetSessionId = stringField(body, 'targetSessionId')
         const mode = body?.['mode'] === 'raw' ? 'raw' : body?.['mode'] === 'distill' ? 'distill' : undefined
         const transcript: WebChatTranscript | undefined = chatId === undefined ? undefined : store.getChat(chatId)
         if (transcript === undefined) {
@@ -206,8 +207,8 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
         }
         try {
           const workspace = workspaceId === undefined ? undefined : { workspaceId }
-          const { sessionId, distilled, attached, workspaceId: attachedWorkspaceId } = await transferToHarnessSession(ctx, { transcript, cwd, workspace }, distill, mode)
-          writeJson(res, 200, { ok: true, sessionId, distilled, attached, workspaceId: attachedWorkspaceId })
+          const { sessionId, distilled, attached, workspaceId: attachedWorkspaceId } = await transferToHarnessSession(ctx, { transcript, cwd, workspace, targetSessionId }, distill, mode)
+          writeJson(res, 200, { ok: true, sessionId, distilled, attached, continued: targetSessionId !== undefined, workspaceId: attachedWorkspaceId })
         } catch (error) {
           writeJson(res, 500, { ok: false, error: String(error) })
         }

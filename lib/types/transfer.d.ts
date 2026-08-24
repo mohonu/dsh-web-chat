@@ -55,7 +55,9 @@ export interface DistillResult {
  * service, a provider/model, or a clean completion is unavailable.
  */
 export declare function distillTranscriptToBrief(ctx: Context, transcript: WebChatTranscript, config: DistillConfig): Promise<DistillResult | undefined>;
-/** Build the seed user-message event carrying the handoff text. */
+/** Build a user-message surface event carrying the handoff text at a given seq. */
+export declare function transcriptUserMessageEvent(markdown: string, seq: number): SessionEvent<'user/message'>;
+/** Build the seed user-message event carrying the handoff text (seq 0). */
 export declare function transcriptSeedEvent(markdown: string): SessionEvent<'user/message'>;
 export interface TransferWorkspaceTarget {
     /** Stable workspace id (from the registry / GUI picker); wins over `path`. */
@@ -68,6 +70,12 @@ export interface TransferToSessionInput {
     cwd?: string;
     /** Target workspace; when set, the session is grouped under it (attached). */
     workspace?: TransferWorkspaceTarget;
+    /**
+     * Existing harness session to CONTINUE instead of creating a new one. When
+     * set, the distilled brief (or raw transcript) is appended as a fresh user
+     * message to that session rather than seeding a new session.
+     */
+    targetSessionId?: string;
 }
 /** Resolved transfer destination: the session cwd plus an optional owning workspace. */
 export interface ResolvedTransferTarget {

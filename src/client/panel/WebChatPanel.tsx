@@ -59,6 +59,7 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
   const [exporting, setExporting] = useState(false)
   const [transferMode, setTransferMode] = useState<TransferMode>('distill')
   const [targetWorkspaceId, setTargetWorkspaceId] = useState<string | undefined>(undefined)
+  const [targetSessionId, setTargetSessionId] = useState<string | undefined>(undefined)
   const [deepThink, setDeepThink] = useState(false)
   const [search, setSearch] = useState(false)
   const [renamingId, setRenamingId] = useState<string | undefined>(undefined)
@@ -89,6 +90,15 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
   )
   const workspaceItems = workspaceSnapshot.items
   const workspaceBaselinesReady = workspaceSnapshot.baselinesReady
+
+  // Existing-session feed for the "continue into" transfer target picker.
+  const sessionSnapshot = useSyncExternalStore(
+    useCallback((listener: () => void) => sessions.list.subscribe(listener), [sessions]),
+    () => sessions.list.getSnapshot(),
+  )
+  const continuationTargets = sessionSnapshot.ids
+    .map(id => sessionSnapshot.byId[id])
+    .filter(session => session !== undefined && session.blank !== true)
 
   // Pick a default target workspace once the list is ready: prefer the current
   // session's workspace, then the most recently active workspace, else ungrouped.
@@ -285,17 +295,23 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
     if (viewChat === undefined || transferring) return
     setTransferring(true)
     try {
-      const result = await api.transfer(viewChat.id, currentCwd(), transferMode, targetWorkspaceId)
+      const result = await api.transfer(viewChat.id, currentCwd(), transferMode, targetWorkspaceId, targetSessionId)
       if (result.ok !== true || result.sessionId === undefined) {
         showToast(result.error ?? 'transfer failed', true)
         return
       }
-      if (result.attached === false && targetWorkspaceId !== undefined) {
-        showToast(fmt(tt('transfer.attached.failed'), { sessionId: result.sessionId }), true)
-      } else {
-        showToast(fmt(tt('transfer.done'), { sessionId: result.sessionId }))
-      }
       const target = result.sessionId
+      if (result.continued === true) {
+        // Continuation: the session is already listed — just open it.
+        showToast(fmt(tt('transfer.continued'), { sessionId: target }))
+        sessions.open(target as SessionId)
+        return
+      }
+      if (result.attached === false && targetWorkspaceId !== undefined) {
+        showToast(fmt(tt('transfer.attached.failed'), { sessionId: target }), true)
+      } else {
+        showToast(fmt(tt('transfer.done'), { sessionId: target }))
+      }
       // The session is persisted cold, so the cached list does not know about
       // it yet. Trigger a full list refresh (concrete-only on the runtime
       // sessions service), then poll until the row lands and open it.
@@ -319,7 +335,7 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
     } finally {
       setTransferring(false)
     }
-  }, [viewChat, transferring, api, currentCwd, sessions, showToast, tt, transferMode, targetWorkspaceId])
+  }, [viewChat, transferring, api, currentCwd, sessions, showToast, tt, transferMode, targetWorkspaceId, targetSessionId])
 
   const exportFile = useCallback(async (): Promise<void> => {
     if (viewChat === undefined || exporting) return
@@ -675,7 +691,23 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
             </div>
             <select
               className={css.workspaceSelect}
+              value={targetSessionId ?? ''}
+              disabled={continuationTargets.length === 0}
+              title={tt('transfer.session.hint')}
+              aria-label={tt('transfer.session.label')}
+              onChange={event => setTargetSessionId(event.target.value === '' ? undefined : event.target.value)}
+            >
+              <option value="">{tt('transfer.session.new')}</option>
+              {continuationTargets.map(session => (
+                <option key={session.id} value={session.id}>
+                  {session.displayTitle}{session.running === true ? ' ·●' : ''}
+                </option>
+              ))}
+            </select>
+            <select
+              className={css.workspaceSelect}
               value={targetWorkspaceId ?? ''}
+              disabled={targetSessionId !== undefined}
               title={tt('transfer.workspace.hint')}
               aria-label={tt('transfer.workspace.label')}
               onChange={event => setTargetWorkspaceId(event.target.value === '' ? undefined : event.target.value)}
@@ -687,7 +719,7 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
                 </option>
               ))}
             </select>
-            <button className={css.buttonGhost} onClick={() => { void createWorkspace() }} title={tt('transfer.workspace.new')}>
+            <button className={css.buttonGhost} onClick={() => { void createWorkspace() }} title={tt('transfer.workspace.new')} disabled={targetSessionId !== undefined}>
               {tt('transfer.workspace.new')}
             </button>
             <button
