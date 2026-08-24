@@ -5,9 +5,9 @@
 ## 特性
 
 - **网页聊天**：复用 DeepSeek 网页端登录，流式获取回复，支持「深度思考（R1）」与「智能搜索」开关。
-- **转移到 Harness**：一键把当前网页对话蒸馏成任务简报（首条消息即简报）并创建新 harness 会话，继续开发。
+- **转移到 Harness**：一键把当前网页对话蒸馏成任务简报（首条消息即简报）并创建新 harness 会话，继续开发；转移时可选择目标工作区（未选则归入「未分组」）。
 - **导入为上下文**：把存储的网页对话导出为 markdown 上下文。
-- **Agent 工具**：`webchat_status` / `webchat_send` / `webchat_import` / `webchat_transfer`，harness agent 可直接调用。
+- **Agent 工具**：`webchat_status` / `webchat_send` / `webchat_import` / `webchat_transfer`，harness agent 可直接调用；`webchat_status` 列出工作区，`webchat_transfer` 可指定目标工作区。
 - **无感登录**：首次使用弹出可见浏览器窗口完成登录，登录后窗口自动关闭，后续聊天在无头浏览器中进行。
 
 ## 安装
@@ -46,6 +46,17 @@ dsh plugin --profile web add github:xmuwenxiang/dsh-web-chat
 
 - 网页端受 DeepSeek 官方风控；页面改版或操作失败时返回错误而非崩溃。
 - 密码/会话凭据保存在本地私有目录（profile），请勿外泄。
+
+## 开发
+
+```bash
+pnpm install
+pnpm typecheck   # 类型检查 src/ 与 test/
+pnpm test        # 运行单元测试（Node 内置测试运行器）
+pnpm build       # 产出 lib/（宿主半区）与 lib/client.js（浏览器 bundle）
+```
+
+仓库已提交编译产物 `lib/`，从 git 安装无需额外构建。
 
 ## License
 

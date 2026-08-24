@@ -18,6 +18,7 @@ import { DeepSeekWebEngine } from './engine/engine.ts'
 import { makeRoutes } from './routes.ts'
 import { TranscriptStore } from './store.ts'
 import { webChatImportTool, webChatSendTool, webChatStatusTool, webChatTransferTool } from './tools.ts'
+import type { WorkspaceRef } from './tools.ts'
 import type { DistillConfig } from './transfer.ts'
 
 /** Stable cordis plugin name. */
@@ -140,8 +141,14 @@ export function apply(ctx: Context, config?: Config): void {
   }, 'dsh-webchat: engine')
 
   const routes = makeRoutes({ ctx, engine, store, distill: distillConfigOf(resolve()) })
+  const listWorkspaces = (): WorkspaceRef[] | undefined => {
+    const registry = ctx.get('workspaceRegistry') as { list(): Array<{ id: string; path: string; title: string }> } | undefined
+    if (registry === undefined) return undefined
+    return registry.list().map(ws => ({ id: ws.id, path: ws.path, title: ws.title }))
+  }
+
   const tools = [
-    webChatStatusTool(engine, store),
+    webChatStatusTool(engine, store, listWorkspaces),
     webChatSendTool(engine),
     webChatImportTool(store),
     webChatTransferTool(ctx, store, distillConfigOf(resolve())),

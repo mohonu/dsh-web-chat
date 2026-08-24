@@ -9,8 +9,14 @@ import type { Context } from '@deepseek-ai/cordis';
 import type { DeepSeekWebEngine } from './engine/engine.ts';
 import type { TranscriptStore } from './store.ts';
 import type { DistillConfig } from './transfer.ts';
+/** Minimal workspace projection surfaced to the agent (id/path/title only). */
+export interface WorkspaceRef {
+    id: string;
+    path: string;
+    title: string;
+}
 /** The engine-status tool. */
-export declare function webChatStatusTool(engine: DeepSeekWebEngine, store: TranscriptStore): import("@deepseek-ai/dsh-tools").ToolDefinition;
+export declare function webChatStatusTool(engine: DeepSeekWebEngine, store: TranscriptStore, listWorkspaces?: () => WorkspaceRef[] | undefined): import("@deepseek-ai/dsh-tools").ToolDefinition;
 /** The send-via-web tool. */
 export declare function webChatSendTool(engine: DeepSeekWebEngine): import("@deepseek-ai/dsh-tools").ToolDefinition;
 /** The transcript import tool. */

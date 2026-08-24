@@ -60,8 +60,8 @@ export class WebChatApi {
     return request<{ ok: boolean }>(WEBChat_API.search, { enabled })
   }
 
-  transfer(chatId: string, cwd?: string, mode?: TransferMode): Promise<EndpointResult<{ ok: boolean; sessionId?: string; distilled?: boolean }>> {
-    return request<{ ok: boolean; sessionId?: string; distilled?: boolean }>(WEBChat_API.transfer, { chatId, cwd, mode })
+  transfer(chatId: string, cwd?: string, mode?: TransferMode, workspaceId?: string): Promise<EndpointResult<{ ok: boolean; sessionId?: string; distilled?: boolean; attached?: boolean; workspaceId?: string }>> {
+    return request<{ ok: boolean; sessionId?: string; distilled?: boolean; attached?: boolean; workspaceId?: string }>(WEBChat_API.transfer, { chatId, cwd, mode, workspaceId })
   }
 
   exportFile(chatId: string, cwd?: string): Promise<EndpointResult<{ ok: boolean; filePath?: string }>> {

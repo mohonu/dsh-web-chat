@@ -5,9 +5,9 @@ A "Codex ChatGPT mode" plugin for [DeepSeek Harness](https://github.com/deepseek
 ## Features
 
 - **Web chat** over your DeepSeek web login, with streaming replies and "Deep Think (R1)" / "Web Search" toggles.
-- **Transfer to Harness**: distill the current conversation into a task brief and open it as a new harness session to continue development.
+- **Transfer to Harness**: distill the current conversation into a task brief and open it as a new harness session to continue development; pick a target workspace (or leave it ungrouped).
 - **Import as context**: export a stored web conversation to markdown.
-- **Agent tools**: `webchat_status`, `webchat_send`, `webchat_import`, `webchat_transfer`.
+- **Agent tools**: `webchat_status`, `webchat_send`, `webchat_import`, `webchat_transfer` — the harness agent can chat via the web, inspect transcripts, list workspaces, and transfer a conversation into a new session (optionally into a target workspace).
 - **Hands-free login**: first use opens a visible browser window for login, which auto-closes afterward; chat then runs headless.
 
 ## Install
@@ -46,6 +46,17 @@ Settings expose: `browserChannel` (default `auto`), `browserExecutablePath`, `br
 
 - The web app is subject to DeepSeek's own risk controls; failures or page changes return errors rather than crashing.
 - Session credentials live in a local private profile directory.
+
+## Development
+
+```bash
+pnpm install
+pnpm typecheck   # type-check src/ and test/
+pnpm test        # run unit tests (Node built-in test runner)
+pnpm build       # emit lib/ (host half) and lib/client.js (browser bundle)
+```
+
+`lib/` is committed, so git installs need no build step.
 
 ## License
 

@@ -705,6 +705,25 @@ html[data-dsh-webchat-active]:not([data-dsh-taskboard-active]):not([data-dsh-ssh
   min-width: 8px;
 }
 
+.workspaceSelect {
+  flex: none;
+  max-width: 280px;
+  appearance: none;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-specific-input-major, var(--dsw-alias-bg-layer1));
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.workspaceSelect:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4f6bfa);
+  outline-offset: 1px;
+}
+
 /* --- markdown ------------------------------------------------------------------- */
 
 .markdown {

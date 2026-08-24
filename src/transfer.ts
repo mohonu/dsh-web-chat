@@ -22,6 +22,7 @@
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { realpath } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
@@ -29,6 +30,7 @@ import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { LlmRuntime, MessageId } from '@deepseek-ai/dsh-llm'
 import { SessionId, SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
+import type { Workspace, WorkspaceId, WorkspaceRegistry } from '@deepseek-ai/dsh-workspace'
 import type { TransferMode, WebChatTranscript } from './protocol.ts'
 
 /** Role label used in rendered transcripts. */
@@ -241,22 +243,91 @@ function normalizeCwd(cwd: string | undefined): string {
   return resolved
 }
 
+export interface TransferWorkspaceTarget {
+  /** Stable workspace id (from the registry / GUI picker); wins over `path`. */
+  workspaceId?: string
+  /** Directory path to use as the session cwd (optionally resolves to a workspace). */
+  path?: string
+}
+
 export interface TransferToSessionInput {
   transcript: WebChatTranscript
   cwd?: string
+  /** Target workspace; when set, the session is grouped under it (attached). */
+  workspace?: TransferWorkspaceTarget
+}
+
+/** Resolved transfer destination: the session cwd plus an optional owning workspace. */
+export interface ResolvedTransferTarget {
+  cwd: string
+  workspace?: Workspace
+}
+
+/** The result of creating a transferred harness session. */
+export interface TransferToSessionResult {
+  sessionId: string
+  distilled: boolean
+  /** True when the session was attached to a workspace; false = ungrouped. */
+  attached: boolean
+  /** Workspace id the session landed in, when attached. */
+  workspaceId?: string
+}
+
+/** Access the optional workspace registry without a hard service dependency. */
+function workspaceRegistryOf(ctx: Context): WorkspaceRegistry | undefined {
+  return ctx.get('workspaceRegistry') as WorkspaceRegistry | undefined
+}
+
+/**
+ * Resolve the transfer destination. A `workspace.workspaceId` is validated
+ * BEFORE the session is persisted so an unknown id fails fast instead of
+ * leaving an orphan ungrouped session; `workspace.path` is realpath-canonicalized
+ * (an existing directory) and opportunistically resolved to a workspace; with
+ * no workspace the existing `cwd` behavior applies unchanged.
+ */
+async function resolveTransferTarget(ctx: Context, input: TransferToSessionInput): Promise<ResolvedTransferTarget> {
+  const registry = workspaceRegistryOf(ctx)
+  const target = input.workspace
+
+  if (target?.workspaceId !== undefined && target.workspaceId !== '') {
+    if (registry === undefined) {
+      throw new Error(`无法归入工作区 ${target.workspaceId}：当前部署未挂载工作区服务`)
+    }
+    const workspace = registry.get(target.workspaceId as WorkspaceId)
+    if (workspace === undefined) {
+      throw new Error(`工作区 ${target.workspaceId} 不存在或已删除`)
+    }
+    return { cwd: workspace.path, workspace }
+  }
+
+  if (target?.path !== undefined && target.path !== '') {
+    let cwd: string
+    try {
+      cwd = await realpath(target.path)
+    } catch {
+      throw new Error(`工作区路径不可用（不存在或不是目录）：${target.path}`)
+    }
+    const workspace = registry === undefined ? undefined : await registry.resolveByPath(cwd).catch(() => undefined)
+    return { cwd, workspace }
+  }
+
+  return { cwd: normalizeCwd(input.cwd) }
 }
 
 /**
  * Create a new COLD harness session seeded with a distilled task brief (or the
  * raw transcript when the user chooses 'raw' / distillation is unavailable),
  * written straight through the session-persistence backend so the GUI lists it
- * and can resume it later (no live-store ownership). Returns the session id.
+ * and can resume it later (no live-store ownership). When `input.workspace`
+ * names a registered workspace, the session's cwd is set to that workspace's
+ * canonical path and the session is attached to the workspace's account, so
+ * the GUI groups it under that workspace instead of "ungrouped".
  *
  * `mode` is the user's explicit choice; when undefined the plugin config
  * default (`transferDistill`) applies.
  */
-export async function transferToHarnessSession(ctx: Context, input: TransferToSessionInput, config: DistillConfig, mode?: TransferMode): Promise<{ sessionId: string; distilled: boolean }> {
-  const cwd = normalizeCwd(input.cwd)
+export async function transferToHarnessSession(ctx: Context, input: TransferToSessionInput, config: DistillConfig, mode?: TransferMode): Promise<TransferToSessionResult> {
+  const target = await resolveTransferTarget(ctx, input)
   const rawMarkdown = renderTranscriptMarkdown(input.transcript, { excludeThinking: true })
 
   const shouldDistill = mode === 'distill' ? true : mode === 'raw' ? false : config.distill
@@ -272,7 +343,7 @@ export async function transferToHarnessSession(ctx: Context, input: TransferToSe
 
   const id = SessionId(`session-${randomUUID()}`)
   const createdAt = Date.now()
-  const header: SessionHeader = { version: SESSION_FORMAT_VERSION, id, createdAt, cwd, delegationDepth: 0 }
+  const header: SessionHeader = { version: SESSION_FORMAT_VERSION, id, createdAt, cwd: target.cwd, delegationDepth: 0 }
 
   // Seed the handoff message, then pin the display name to the web chat's
   // title (seq 1, immediately after the seed) so the GUI list shows the chat
@@ -292,9 +363,21 @@ export async function transferToHarnessSession(ctx: Context, input: TransferToSe
     await persistence.append(id, events)
   } else {
     // No persistence backend mounted (the deployment has no resume path).
-    ctx.sessions.create(id, { meta: { cwd }, seed: events })
+    ctx.sessions.create(id, { meta: { cwd: target.cwd }, seed: events })
   }
-  return { sessionId: id, distilled }
+
+  let attached = false
+  if (target.workspace !== undefined) {
+    try {
+      await target.workspace.attachSession(id)
+      attached = true
+    } catch {
+      // Non-fatal: the session is already persisted; it simply stays ungrouped.
+      attached = false
+    }
+  }
+  const workspaceId = attached && target.workspace !== undefined ? target.workspace.id : undefined
+  return { sessionId: id, distilled, attached, workspaceId }
 }
 
 export interface ExportTranscriptInput {

@@ -67,6 +67,10 @@ export interface TransferResult {
   readonly ok: boolean
   readonly sessionId?: string
   readonly filePath?: string
+  /** True when the session was attached to a workspace (grouped); false = ungrouped. */
+  readonly attached?: boolean
+  /** Workspace id the session landed in, when attached. */
+  readonly workspaceId?: string
   readonly error?: string
 }
 

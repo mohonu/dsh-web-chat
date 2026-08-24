@@ -11,7 +11,7 @@
  * mono register stays reserved for machine things — timestamps, counts,
  * status, and the handoff eyebrow.
  */
-import type { ISessions } from '@deepseek-ai/dsh-client-runtime/client';
+import type { ISessions, IWorkspaces } from '@deepseek-ai/dsh-client-runtime/client';
 import type { WebChatApi } from '../api.ts';
 import type { WebChatKey } from '../locales.ts';
 export interface WebChatPanelProps {
@@ -20,7 +20,9 @@ export interface WebChatPanelProps {
     tt: (key: WebChatKey) => string;
     /** Client sessions service (ctx.sessions) for opening transferred sessions. */
     sessions: ISessions;
+    /** Client workspaces service (ctx.workspaces) for the transfer target picker. */
+    workspaces: IWorkspaces;
     /** Resolve the current workspace directory (cwd for new sessions / exports). */
     currentCwd: () => string | undefined;
 }
-export declare function WebChatPanel({ api, tt, sessions, currentCwd }: WebChatPanelProps): import("react").JSX.Element;
+export declare function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebChatPanelProps): import("react").JSX.Element;

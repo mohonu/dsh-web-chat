@@ -19,6 +19,13 @@ function text(value: string): ContentBlock[] {
   return [{ type: 'text', text: value }]
 }
 
+/** Minimal workspace projection surfaced to the agent (id/path/title only). */
+export interface WorkspaceRef {
+  id: string
+  path: string
+  title: string
+}
+
 /** Render the chat list compactly. */
 function renderChats(store: TranscriptStore): string {
   const chats = store.list()
@@ -32,10 +39,10 @@ function renderChats(store: TranscriptStore): string {
 }
 
 /** The engine-status tool. */
-export function webChatStatusTool(engine: DeepSeekWebEngine, store: TranscriptStore) {
+export function webChatStatusTool(engine: DeepSeekWebEngine, store: TranscriptStore, listWorkspaces?: () => WorkspaceRef[] | undefined) {
   return defineTool({
     name: 'webchat_status',
-    description: 'Report the DeepSeek 网页端 (chat.deepseek.com) web-chat state: engine status, login state, active chat, and stored transcripts. Triggers: webchat, deepseek 网页端, 网页聊天. Use before webchat_send to confirm login.',
+    description: 'Report the DeepSeek 网页端 (chat.deepseek.com) web-chat state: engine status, login state, active chat, stored transcripts, and the harness workspaces available as webchat_transfer targets. Triggers: webchat, deepseek 网页端, 网页聊天. Use before webchat_send to confirm login.',
     parameters: {},
     output: {
       schema: {
@@ -60,6 +67,12 @@ export function webChatStatusTool(engine: DeepSeekWebEngine, store: TranscriptSt
         `activeChat: ${active === undefined ? '-' : `${active.id} (${active.title})`}`,
         `chats:\n${renderChats(store)}`,
       ]
+      const workspaces = listWorkspaces?.()
+      if (workspaces !== undefined) {
+        lines.push('workspaces:')
+        if (workspaces.length === 0) lines.push('  (none)')
+        else for (const ws of workspaces) lines.push(`  ${ws.id} | ${ws.title} | ${ws.path}`)
+      }
       return { report: lines.join('\n') }
     },
   })
@@ -144,9 +157,11 @@ export function webChatImportTool(store: TranscriptStore) {
 export function webChatTransferTool(hostCtx: Context, store: TranscriptStore, distill: DistillConfig) {
   return defineTool({
     name: 'webchat_transfer',
-    description: 'Transfer a stored DeepSeek 网页端 transcript into harness mode: distills the web conversation into an executable task brief (goal, established context, current state, next steps) and creates a NEW harness session whose first message is that brief (not the raw chat log). Returns the new session id. Triggers: 转移到 harness, 转成开发会话, transfer webchat.',
+    description: 'Transfer a stored DeepSeek 网页端 transcript into harness mode: distills the web conversation into an executable task brief (goal, established context, current state, next steps) and creates a NEW harness session whose first message is that brief (not the raw chat log). Optionally target a workspace (workspaceId from webchat_status workspaces list) so the session is grouped under it; omit for an ungrouped session. Returns the new session id. Triggers: 转移到 harness, 转成开发会话, transfer webchat.',
     parameters: {
       chatId: { type: 'string', description: 'Transcript id (from webchat_status). Omit for the active chat.' },
+      workspaceId: { type: 'string', description: 'Optional target workspace id (from the workspaces list in webchat_status). Omit to leave the new session ungrouped.' },
+      cwd: { type: 'string', description: 'Optional absolute working directory for the new session; ignored when workspaceId is given.' },
     },
     output: {
       schema: {
@@ -155,23 +170,27 @@ export function webChatTransferTool(hostCtx: Context, store: TranscriptStore, di
         properties: {
           sessionId: { type: 'string', required: true },
           distilled: { type: 'boolean' },
+          attached: { type: 'boolean' },
+          workspaceId: { type: 'string' },
           error: { type: 'string' },
         },
       },
-      render: (_args, value: { sessionId?: string; distilled?: boolean; error?: string }) => {
+      render: (_args, value: { sessionId?: string; distilled?: boolean; attached?: boolean; workspaceId?: string; error?: string }) => {
         if (value.error !== undefined) return text(value.error)
         const note = value.distilled === true ? '（已蒸馏为任务简报）' : '（蒸馏不可用，已回退为原始对话记录）'
-        return text(`webchat_transfer: 已创建新 harness 会话 ${value.sessionId ?? ''}${note}。请告知用户从侧边栏打开该会话继续开发。`)
+        const where = value.workspaceId !== undefined ? `已归入工作区 ${value.workspaceId}` : '未分组'
+        return text(`webchat_transfer: 已创建新 harness 会话 ${value.sessionId ?? ''}${note}（${where}）。请告知用户从侧边栏打开该会话继续开发。`)
       },
     },
-    async execute(args: { chatId?: string }): Promise<{ sessionId: string; distilled: boolean; error?: string }> {
+    async execute(args: { chatId?: string; workspaceId?: string; cwd?: string }): Promise<{ sessionId: string; distilled: boolean; attached: boolean; workspaceId?: string; error?: string }> {
       const chat = typeof args?.chatId === 'string' ? store.getChat(args.chatId) : store.activeChat()
-      if (chat === undefined) return { sessionId: '', distilled: false, error: 'webchat_transfer: 找不到对话记录（用 webchat_status 查看列表）' }
+      if (chat === undefined) return { sessionId: '', distilled: false, attached: false, error: 'webchat_transfer: 找不到对话记录（用 webchat_status 查看列表）' }
+      const workspace = typeof args?.workspaceId === 'string' && args.workspaceId !== '' ? { workspaceId: args.workspaceId } : undefined
       try {
-        const { sessionId, distilled } = await transferToHarnessSession(hostCtx, { transcript: chat }, distill)
-        return { sessionId, distilled }
+        const { sessionId, distilled, attached, workspaceId } = await transferToHarnessSession(hostCtx, { transcript: chat, cwd: args?.cwd, workspace }, distill)
+        return { sessionId, distilled, attached, workspaceId }
       } catch (error) {
-        return { sessionId: '', distilled: false, error: `webchat_transfer: 创建会话失败 — ${String(error)}` }
+        return { sessionId: '', distilled: false, attached: false, error: `webchat_transfer: 创建会话失败 — ${String(error)}` }
       }
     },
   })

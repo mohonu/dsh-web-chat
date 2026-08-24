@@ -1,4 +1,4 @@
-import type { ISessions } from '@deepseek-ai/dsh-client-runtime/client';
+import type { ISessions, IWorkspaces } from '@deepseek-ai/dsh-client-runtime/client';
 import type { WebChatApi } from './api.ts';
 import type { PanelController } from './controller.ts';
 import type { WebChatKey } from './locales.ts';
@@ -6,6 +6,7 @@ import type { WebChatKey } from './locales.ts';
 export declare const PANEL_VIEW_SELECTOR = "[data-dsh-webchat-view]";
 export interface MountPanelDeps {
     sessions: ISessions;
+    workspaces: IWorkspaces;
     api: WebChatApi;
     controller: PanelController;
     /** Locale accessor bound to the plugin's registered dictionaries. */

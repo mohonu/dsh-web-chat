@@ -26,6 +26,13 @@ export declare const zh: {
     readonly 'transfer.mode.distill': "蒸馏为任务简报";
     readonly 'transfer.mode.raw': "原始记录";
     readonly 'transfer.mode.hint': "蒸馏：用 harness LLM 把对话提炼成可执行任务简报；原始记录：原样放入新会话首条消息";
+    readonly 'transfer.workspace.label': "目标工作区";
+    readonly 'transfer.workspace.ungrouped': "未分组";
+    readonly 'transfer.workspace.new': "新建工作区…";
+    readonly 'transfer.workspace.hint': "转移到所选工作区；未分组则不归入任何工作区";
+    readonly 'transfer.workspace.created': "已创建并选中工作区 {title}";
+    readonly 'transfer.workspace.createFailed': "创建工作区失败：{error}";
+    readonly 'transfer.attached.failed': "会话已创建（{sessionId}），但归入工作区失败，现为未分组";
     readonly 'handoff.eyebrow': "交付到 Harness";
     readonly 'toggle.deepThink': "深度思考";
     readonly 'toggle.search': "智能搜索";
@@ -89,6 +96,13 @@ export declare const en: {
     'transfer.mode.distill': string;
     'transfer.mode.raw': string;
     'transfer.mode.hint': string;
+    'transfer.workspace.label': string;
+    'transfer.workspace.ungrouped': string;
+    'transfer.workspace.new': string;
+    'transfer.workspace.hint': string;
+    'transfer.workspace.created': string;
+    'transfer.workspace.createFailed': string;
+    'transfer.attached.failed': string;
     'handoff.eyebrow': string;
     'toggle.deepThink': string;
     'toggle.search': string;

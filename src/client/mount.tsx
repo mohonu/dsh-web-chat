@@ -9,7 +9,7 @@
  * stateful.
  */
 import { createRoot, type Root } from 'react-dom/client'
-import type { ISessions } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ISessions, IWorkspaces } from '@deepseek-ai/dsh-client-runtime/client'
 import type { WebChatApi } from './api.ts'
 import type { PanelController } from './controller.ts'
 import type { WebChatKey } from './locales.ts'
@@ -34,6 +34,7 @@ function conversationColumn(): HTMLElement | undefined {
 
 export interface MountPanelDeps {
   sessions: ISessions
+  workspaces: IWorkspaces
   api: WebChatApi
   controller: PanelController
   /** Locale accessor bound to the plugin's registered dictionaries. */
@@ -49,7 +50,7 @@ export interface MountPanelDeps {
  * @returns disposer unmounting the tree and restoring the column.
  */
 export function mountPanel(deps: MountPanelDeps): () => void {
-  const { sessions, api, controller, tt, currentCwd } = deps
+  const { sessions, workspaces, api, controller, tt, currentCwd } = deps
   let root: Root | undefined
   let container: HTMLDivElement | undefined
 
@@ -70,7 +71,7 @@ export function mountPanel(deps: MountPanelDeps): () => void {
     container.className = css.view
     column.appendChild(container)
     root = createRoot(container)
-    root.render(<WebChatPanel api={api} tt={tt} sessions={sessions} currentCwd={currentCwd} />)
+    root.render(<WebChatPanel api={api} tt={tt} sessions={sessions} workspaces={workspaces} currentCwd={currentCwd} />)
   }
 
   // The frame mounts after boot settlement; watch for the column's arrival.

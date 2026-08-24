@@ -10,7 +10,7 @@
  * Export discipline (packages/client rule): the /client surface carries what
  * cordis loading needs plus types only — all value exports stay internal.
  */
-import type { ClientContext, ISessions } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext, ISessions, IWorkspaces } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the LocaleNamespaceMap merge table.
@@ -32,7 +32,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 /** Required services (fiber inject waiting — the runtime must be up first). */
-export const inject = ['slots', 'locale', 'sessions']
+export const inject = ['slots', 'locale', 'sessions', 'workspaces']
 
 /** Type-only surface (export discipline: no value exports beyond the plugin contract). */
 export type { WebChatPanelProps } from './panel/WebChatPanel.tsx'
@@ -52,6 +52,7 @@ export function apply(ctx: ClientContext): void {
   // here, so read it through a narrow cast rather than trusting the merged
   // type (which the host package wins during a shared typecheck).
   const sessions = (ctx as unknown as { sessions: ISessions }).sessions
+  const workspaces = (ctx as unknown as { workspaces: IWorkspaces }).workspaces
   const tt = ctx.locale.bind(NS)
   const currentCwd = (): string | undefined => {
     const snapshot = sessions.list.getSnapshot()
@@ -63,7 +64,7 @@ export function apply(ctx: ClientContext): void {
   const disposers: Array<() => void> = []
   try {
     disposers.push(mountSidebarEntry({ controller, tt }))
-    disposers.push(mountPanel({ sessions, api, controller, tt, currentCwd }))
+    disposers.push(mountPanel({ sessions, workspaces, api, controller, tt, currentCwd }))
   } catch (error) {
     // DOM failures degrade the panel, never the GUI.
     console.warn('[dsh-webchat] mount failed:', error)

@@ -22,6 +22,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis';
 import type { SessionEvent } from '@deepseek-ai/dsh-session';
+import type { Workspace } from '@deepseek-ai/dsh-workspace';
 import type { TransferMode, WebChatTranscript } from './protocol.ts';
 /** Render one transcript to markdown for harness consumption. */
 export declare function renderTranscriptMarkdown(transcript: WebChatTranscript, options?: {
@@ -56,23 +57,45 @@ export interface DistillResult {
 export declare function distillTranscriptToBrief(ctx: Context, transcript: WebChatTranscript, config: DistillConfig): Promise<DistillResult | undefined>;
 /** Build the seed user-message event carrying the handoff text. */
 export declare function transcriptSeedEvent(markdown: string): SessionEvent<'user/message'>;
+export interface TransferWorkspaceTarget {
+    /** Stable workspace id (from the registry / GUI picker); wins over `path`. */
+    workspaceId?: string;
+    /** Directory path to use as the session cwd (optionally resolves to a workspace). */
+    path?: string;
+}
 export interface TransferToSessionInput {
     transcript: WebChatTranscript;
     cwd?: string;
+    /** Target workspace; when set, the session is grouped under it (attached). */
+    workspace?: TransferWorkspaceTarget;
+}
+/** Resolved transfer destination: the session cwd plus an optional owning workspace. */
+export interface ResolvedTransferTarget {
+    cwd: string;
+    workspace?: Workspace;
+}
+/** The result of creating a transferred harness session. */
+export interface TransferToSessionResult {
+    sessionId: string;
+    distilled: boolean;
+    /** True when the session was attached to a workspace; false = ungrouped. */
+    attached: boolean;
+    /** Workspace id the session landed in, when attached. */
+    workspaceId?: string;
 }
 /**
  * Create a new COLD harness session seeded with a distilled task brief (or the
  * raw transcript when the user chooses 'raw' / distillation is unavailable),
  * written straight through the session-persistence backend so the GUI lists it
- * and can resume it later (no live-store ownership). Returns the session id.
+ * and can resume it later (no live-store ownership). When `input.workspace`
+ * names a registered workspace, the session's cwd is set to that workspace's
+ * canonical path and the session is attached to the workspace's account, so
+ * the GUI groups it under that workspace instead of "ungrouped".
  *
  * `mode` is the user's explicit choice; when undefined the plugin config
  * default (`transferDistill`) applies.
  */
-export declare function transferToHarnessSession(ctx: Context, input: TransferToSessionInput, config: DistillConfig, mode?: TransferMode): Promise<{
-    sessionId: string;
-    distilled: boolean;
-}>;
+export declare function transferToHarnessSession(ctx: Context, input: TransferToSessionInput, config: DistillConfig, mode?: TransferMode): Promise<TransferToSessionResult>;
 export interface ExportTranscriptInput {
     transcript: WebChatTranscript;
     cwd?: string;

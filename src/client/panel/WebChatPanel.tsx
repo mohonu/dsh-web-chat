@@ -12,8 +12,8 @@
  * status, and the handoff eyebrow.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ISessions, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import type { ISessions, IWorkspaces, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { WebChatApi } from '../api.ts'
 import type { TransferMode, WebChatState, WebChatTranscript } from '../../protocol.ts'
 import type { WebChatKey } from '../locales.ts'
@@ -37,6 +37,8 @@ export interface WebChatPanelProps {
   tt: (key: WebChatKey) => string
   /** Client sessions service (ctx.sessions) for opening transferred sessions. */
   sessions: ISessions
+  /** Client workspaces service (ctx.workspaces) for the transfer target picker. */
+  workspaces: IWorkspaces
   /** Resolve the current workspace directory (cwd for new sessions / exports). */
   currentCwd: () => string | undefined
 }
@@ -46,7 +48,7 @@ const POLL_IDLE_MS = 1_500
 /** Faster polling while a reply is streaming. */
 const POLL_STREAM_MS = 600
 
-export function WebChatPanel({ api, tt, sessions, currentCwd }: WebChatPanelProps) {
+export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebChatPanelProps) {
   const [state, setState] = useState<WebChatState | null>(null)
   const [viewChatId, setViewChatId] = useState<string | undefined>(undefined)
   const [draft, setDraft] = useState('')
@@ -54,6 +56,7 @@ export function WebChatPanel({ api, tt, sessions, currentCwd }: WebChatPanelProp
   const [transferring, setTransferring] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [transferMode, setTransferMode] = useState<TransferMode>('distill')
+  const [targetWorkspaceId, setTargetWorkspaceId] = useState<string | undefined>(undefined)
   const [deepThink, setDeepThink] = useState(false)
   const [search, setSearch] = useState(false)
   const [renamingId, setRenamingId] = useState<string | undefined>(undefined)
@@ -73,6 +76,42 @@ export function WebChatPanel({ api, tt, sessions, currentCwd }: WebChatPanelProp
     window.clearTimeout(toastTimer.current)
     toastTimer.current = window.setTimeout(() => setToast(null), 5_000)
   }, [])
+
+  // Workspace list feed for the transfer-target picker (reactive snapshot).
+  const workspaceSnapshot = useSyncExternalStore(
+    useCallback((listener: () => void) => workspaces.list.subscribe(listener), [workspaces]),
+    () => workspaces.list.getSnapshot(),
+  )
+  const workspaceItems = workspaceSnapshot.items
+  const workspaceBaselinesReady = workspaceSnapshot.baselinesReady
+
+  // Pick a default target workspace once the list is ready: prefer the current
+  // session's workspace, then the most recently active workspace, else ungrouped.
+  const workspaceDefaultSet = useRef(false)
+  useEffect(() => {
+    if (workspaceDefaultSet.current || !workspaceBaselinesReady) return
+    workspaceDefaultSet.current = true
+    const currentSessionId = sessions.list.getSnapshot().current
+    const currentWorkspace = currentSessionId === undefined ? undefined : workspaceItems.find(ws => ws.sessionIds.includes(currentSessionId))
+    setTargetWorkspaceId(currentWorkspace?.workspaceId ?? workspaceSnapshot.recentWorkspaceId)
+  }, [workspaceBaselinesReady, workspaceItems, workspaceSnapshot.recentWorkspaceId, sessions])
+
+  const creatingWorkspace = useRef(false)
+  const createWorkspace = useCallback(async (): Promise<void> => {
+    if (creatingWorkspace.current) return
+    creatingWorkspace.current = true
+    try {
+      const path = await workspaces.pickDirectory()
+      if (path === null || path === '') return
+      const created = await workspaces.create({ path })
+      setTargetWorkspaceId(created.workspaceId)
+      showToast(fmt(tt('transfer.workspace.created'), { title: created.title }))
+    } catch (error) {
+      showToast(fmt(tt('transfer.workspace.createFailed'), { error: String(error) }), true)
+    } finally {
+      creatingWorkspace.current = false
+    }
+  }, [workspaces, showToast, tt])
 
   // Poll /state.
   useEffect(() => {
@@ -207,12 +246,16 @@ export function WebChatPanel({ api, tt, sessions, currentCwd }: WebChatPanelProp
     if (viewChat === undefined || transferring) return
     setTransferring(true)
     try {
-      const result = await api.transfer(viewChat.id, currentCwd(), transferMode)
+      const result = await api.transfer(viewChat.id, currentCwd(), transferMode, targetWorkspaceId)
       if (result.ok !== true || result.sessionId === undefined) {
         showToast(result.error ?? 'transfer failed', true)
         return
       }
-      showToast(fmt(tt('transfer.done'), { sessionId: result.sessionId }))
+      if (result.attached === false && targetWorkspaceId !== undefined) {
+        showToast(fmt(tt('transfer.attached.failed'), { sessionId: result.sessionId }), true)
+      } else {
+        showToast(fmt(tt('transfer.done'), { sessionId: result.sessionId }))
+      }
       const target = result.sessionId
       // The session is persisted cold, so the cached list does not know about
       // it yet. Trigger a full list refresh (concrete-only on the runtime
@@ -237,7 +280,7 @@ export function WebChatPanel({ api, tt, sessions, currentCwd }: WebChatPanelProp
     } finally {
       setTransferring(false)
     }
-  }, [viewChat, transferring, api, currentCwd, sessions, showToast, tt, transferMode])
+  }, [viewChat, transferring, api, currentCwd, sessions, showToast, tt, transferMode, targetWorkspaceId])
 
   const exportFile = useCallback(async (): Promise<void> => {
     if (viewChat === undefined || exporting) return
@@ -545,6 +588,23 @@ export function WebChatPanel({ api, tt, sessions, currentCwd }: WebChatPanelProp
                 {tt('transfer.mode.raw')}
               </button>
             </div>
+            <select
+              className={css.workspaceSelect}
+              value={targetWorkspaceId ?? ''}
+              title={tt('transfer.workspace.hint')}
+              aria-label={tt('transfer.workspace.label')}
+              onChange={event => setTargetWorkspaceId(event.target.value === '' ? undefined : event.target.value)}
+            >
+              <option value="">{tt('transfer.workspace.ungrouped')}</option>
+              {workspaceItems.map(ws => (
+                <option key={ws.workspaceId} value={ws.workspaceId}>
+                  {ws.title}{ws.path !== ws.title ? ` — ${ws.path}` : ''}
+                </option>
+              ))}
+            </select>
+            <button className={css.buttonGhost} onClick={() => { void createWorkspace() }} title={tt('transfer.workspace.new')}>
+              {tt('transfer.workspace.new')}
+            </button>
             <button
               className={`${css.button} ${css.buttonPrimary}`}
               disabled={viewChat === undefined || transferring}

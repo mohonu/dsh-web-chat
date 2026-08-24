@@ -35,10 +35,12 @@ export declare class WebChatApi {
     setSearch(enabled: boolean): Promise<EndpointResult<{
         ok: boolean;
     }>>;
-    transfer(chatId: string, cwd?: string, mode?: TransferMode): Promise<EndpointResult<{
+    transfer(chatId: string, cwd?: string, mode?: TransferMode, workspaceId?: string): Promise<EndpointResult<{
         ok: boolean;
         sessionId?: string;
         distilled?: boolean;
+        attached?: boolean;
+        workspaceId?: string;
     }>>;
     exportFile(chatId: string, cwd?: string): Promise<EndpointResult<{
         ok: boolean;
