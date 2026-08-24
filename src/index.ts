@@ -62,6 +62,10 @@ export interface Config {
   transferProvider?: string
   /** Model id for the transfer distillation call (empty = auto-detect). */
   transferModel?: string
+  /** Output-token cap for the final distillation brief (default 4096). */
+  transferMaxTokens?: number
+  /** Output-token cap per chunk summary in long-conversation map-reduce (default 1024). */
+  transferChunkTokens?: number
 }
 
 export const Config: z<Config> = z.object({
@@ -76,6 +80,8 @@ export const Config: z<Config> = z.object({
   transferDistill: z.boolean().default(true),
   transferProvider: z.string().default(''),
   transferModel: z.string().default(''),
+  transferMaxTokens: z.number().default(4096),
+  transferChunkTokens: z.number().default(1024),
 })
 
 /** Schema default, re-read for hand-built test contexts (the loader applies them normally). */
@@ -126,12 +132,16 @@ export function apply(ctx: Context, config?: Config): void {
     transferDistill: current().transferDistill ?? true,
     transferProvider: current().transferProvider ?? '',
     transferModel: current().transferModel ?? '',
+    transferMaxTokens: current().transferMaxTokens ?? 4_096,
+    transferChunkTokens: current().transferChunkTokens ?? 1_024,
   })
 
   const distillConfigOf = (value: Config): DistillConfig => ({
     distill: value.transferDistill ?? true,
     provider: (value.transferProvider ?? '').trim(),
     model: (value.transferModel ?? '').trim(),
+    maxTokens: value.transferMaxTokens ?? 4_096,
+    chunkTokens: value.transferChunkTokens ?? 1_024,
   })
 
   const store = new TranscriptStore({ dataDir: resolve().dataDir !== '' ? resolve().dataDir : undefined })

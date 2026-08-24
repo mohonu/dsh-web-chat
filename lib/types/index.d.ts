@@ -47,6 +47,10 @@ export interface Config {
     transferProvider?: string;
     /** Model id for the transfer distillation call (empty = auto-detect). */
     transferModel?: string;
+    /** Output-token cap for the final distillation brief (default 4096). */
+    transferMaxTokens?: number;
+    /** Output-token cap per chunk summary in long-conversation map-reduce (default 1024). */
+    transferChunkTokens?: number;
 }
 export declare const Config: z<Config>;
 /** Model-facing announcement: plugin presence, capabilities, and limits. */

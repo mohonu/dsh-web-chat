@@ -39,7 +39,7 @@ dsh plugin --profile web add github:xmuwenxiang/dsh-web-chat
 
 ## Config
 
-Settings expose: `browserChannel` (default `auto`), `browserExecutablePath`, `browserProxy`, `browserHeadless` (chat headless; default `true` — the login window is always visible and auto-closes), `replyTimeoutMs`, and `transferDistill` / `transferProvider` / `transferModel` (distillation model for transfer).
+Settings expose: `browserChannel` (default `auto`), `browserExecutablePath`, `browserProxy`, `browserHeadless` (chat headless; default `true` — the login window is always visible and auto-closes), `replyTimeoutMs`, `transferDistill` / `transferProvider` / `transferModel` (distillation model for transfer), `transferMaxTokens` (final brief cap, default 4096), and `transferChunkTokens` (per-chunk cap for long-conversation map-reduce, default 1024).
 
 ## Requirements
 

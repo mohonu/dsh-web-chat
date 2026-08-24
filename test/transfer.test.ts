@@ -17,8 +17,8 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
-import { renderTranscriptMarkdown, transcriptUserMessageEvent, transferToHarnessSession } from '../src/transfer.ts'
-import type { WebChatTranscript } from '../src/protocol.ts'
+import { chunkTranscript, renderTranscriptMarkdown, transcriptUserMessageEvent, transferToHarnessSession } from '../src/transfer.ts'
+import type { WebChatMessage, WebChatTranscript } from '../src/protocol.ts'
 
 const transcript: WebChatTranscript = {
   id: 'chat-test-000001',
@@ -188,6 +188,39 @@ test('targetSessionId 延续：无持久化后端时抛错', async () => {
     transferToHarnessSession(ctx, { transcript, targetSessionId: 'session-x' }, NO_DISTILL),
     /持久化后端/,
   )
+})
+
+test('chunkTranscript 按字符预算分块且不拆分单条消息', () => {
+  const msgs: WebChatMessage[] = [
+    { id: 'a', role: 'user', content: 'aaaa', ts: 0 },
+    { id: 'b', role: 'assistant', content: 'bbbb', ts: 0 },
+    { id: 'c', role: 'user', content: 'cc', ts: 0 },
+    { id: 'd', role: 'assistant', content: 'dd', ts: 0 },
+  ]
+  const chunks = chunkTranscript({ ...transcript, messages: msgs }, 10)
+  assert.equal(chunks.length, 2)
+  assert.deepEqual(chunks[0]!.map(m => m.id), ['a', 'b', 'c'])
+  assert.deepEqual(chunks[1]!.map(m => m.id), ['d'])
+})
+
+test('chunkTranscript 超预算的单条消息独占一块', () => {
+  const msgs: WebChatMessage[] = [
+    { id: 'a', role: 'user', content: '短', ts: 0 },
+    { id: 'big', role: 'assistant', content: 'x'.repeat(50), ts: 0 },
+    { id: 'c', role: 'user', content: '尾', ts: 0 },
+  ]
+  const chunks = chunkTranscript({ ...transcript, messages: msgs }, 10)
+  assert.deepEqual(chunks.map(chunk => chunk.map(m => m.id)), [['a'], ['big'], ['c']])
+})
+
+test('chunkTranscript 跳过未完成的流式回复', () => {
+  const msgs: WebChatMessage[] = [
+    { id: 'a', role: 'user', content: '问题', ts: 0 },
+    { id: 's', role: 'assistant', content: '未完成的流式回复', ts: 0, streaming: true },
+    { id: 'b', role: 'user', content: '继续', ts: 0 },
+  ]
+  const chunks = chunkTranscript({ ...transcript, messages: msgs }, 10)
+  assert.deepEqual(chunks.flat().map(m => m.id), ['a', 'b'])
 })
 
 test('renderTranscriptMarkdown 标注图片附件', () => {

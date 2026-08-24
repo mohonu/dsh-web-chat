@@ -31,7 +31,7 @@ import type { LlmRuntime, MessageId } from '@deepseek-ai/dsh-llm'
 import { SessionId, SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import type { Workspace, WorkspaceId, WorkspaceRegistry } from '@deepseek-ai/dsh-workspace'
-import type { TransferMode, WebChatTranscript } from './protocol.ts'
+import type { TransferMode, WebChatMessage, WebChatTranscript } from './protocol.ts'
 
 /** Role label used in rendered transcripts. */
 const ROLE_LABEL: Record<'user' | 'assistant', string> = { user: '用户', assistant: 'DeepSeek（网页端）' }
@@ -44,19 +44,11 @@ function stripThinking(markdown: string): string {
     .trim()
 }
 
-/** Render one transcript to markdown for harness consumption. */
-export function renderTranscriptMarkdown(transcript: WebChatTranscript, options?: { excludeThinking?: boolean }): string {
+/** Render the message list of a transcript (no header) to markdown. */
+export function renderMessagesMarkdown(messages: WebChatMessage[], options?: { excludeThinking?: boolean }): string {
   const excludeThinking = options?.excludeThinking ?? false
   const lines: string[] = []
-  lines.push(`# 网页端对话记录：${transcript.title}`)
-  lines.push('')
-  lines.push(`- 来源：DeepSeek 网页端（chat.deepseek.com）· 模型 ${transcript.model}`)
-  lines.push(`- 开始时间：${new Date(transcript.createdAt).toLocaleString()}`)
-  lines.push(`- 消息数：${transcript.messages.length}`)
-  lines.push('')
-  lines.push('> 以下内容由 dsh-webchat 插件从 DeepSeek 网页端会话导出。')
-  lines.push('')
-  for (const message of transcript.messages) {
+  for (const message of messages) {
     if (message.role === 'assistant' && message.streaming) continue
     const content = (excludeThinking ? stripThinking(message.content) : message.content).trim()
     lines.push(`## ${ROLE_LABEL[message.role]}`)
@@ -72,6 +64,22 @@ export function renderTranscriptMarkdown(transcript: WebChatTranscript, options?
     }
     lines.push('')
   }
+  return lines.join('\n').trim()
+}
+
+/** Render one transcript to markdown for harness consumption. */
+export function renderTranscriptMarkdown(transcript: WebChatTranscript, options?: { excludeThinking?: boolean }): string {
+  const lines: string[] = []
+  lines.push(`# 网页端对话记录：${transcript.title}`)
+  lines.push('')
+  lines.push(`- 来源：DeepSeek 网页端（chat.deepseek.com）· 模型 ${transcript.model}`)
+  lines.push(`- 开始时间：${new Date(transcript.createdAt).toLocaleString()}`)
+  lines.push(`- 消息数：${transcript.messages.length}`)
+  lines.push('')
+  lines.push('> 以下内容由 dsh-webchat 插件从 DeepSeek 网页端会话导出。')
+  lines.push('')
+  const body = renderMessagesMarkdown(transcript.messages, options)
+  if (body !== '') lines.push(body)
   return lines.join('\n').trim() + '\n'
 }
 
@@ -123,7 +131,18 @@ export interface DistillConfig {
   provider: string
   /** Model id for the distillation call; empty = auto-detect. */
   model: string
+  /** Output-token cap for the final brief (single-shot / reduce). Default 4096. */
+  maxTokens?: number
+  /** Output-token cap for each per-chunk map summary. Default 1024. */
+  chunkTokens?: number
 }
+
+/** Default output-token cap for the final distillation brief. */
+export const DEFAULT_TRANSFER_MAX_TOKENS = 4_096
+/** Default output-token cap for one chunk summary in the map phase. */
+export const DEFAULT_TRANSFER_CHUNK_TOKENS = 1_024
+/** Character budget per chunk when splitting a long transcript for map-reduce. */
+export const CHUNK_CHAR_BUDGET = 12_000
 
 /** A successful distillation result. */
 export interface DistillResult {
@@ -147,17 +166,47 @@ async function resolveDistillTarget(llm: LlmRuntime, provider: string, model: st
 }
 
 /**
- * Distill a web transcript into an executable task brief via the harness LLM.
- * Returns undefined (so callers fall back to the raw transcript) when the LLM
- * service, a provider/model, or a clean completion is unavailable.
+ * Split a transcript's messages into chunks of at most `budget` characters
+ * (sum of `message.content.length`), never splitting a single message: a
+ * message larger than the budget becomes its own (oversized) chunk. Streaming
+ * assistant messages are skipped (they were never completed).
  */
-export async function distillTranscriptToBrief(ctx: Context, transcript: WebChatTranscript, config: DistillConfig): Promise<DistillResult | undefined> {
-  const llm = ctx.get('llm') as LlmRuntime | undefined
-  if (llm === undefined) return undefined
-  const target = await resolveDistillTarget(llm, config.provider, config.model).catch(() => undefined)
-  if (target === undefined) return undefined
+export function chunkTranscript(transcript: WebChatTranscript, budget: number = CHUNK_CHAR_BUDGET): WebChatMessage[][] {
+  const chunks: WebChatMessage[][] = []
+  let current: WebChatMessage[] = []
+  let size = 0
+  for (const message of transcript.messages) {
+    if (message.role === 'assistant' && message.streaming) continue
+    const messageSize = Math.max(1, message.content.length)
+    if (current.length > 0 && size + messageSize > budget) {
+      chunks.push(current)
+      current = []
+      size = 0
+    }
+    current.push(message)
+    size += messageSize
+  }
+  if (current.length > 0) chunks.push(current)
+  return chunks
+}
 
-  const instruction = `${DISTILL_INSTRUCTION}\n\n--- 网页对话记录 ---\n\n${renderTranscriptMarkdown(transcript, { excludeThinking: true })}`
+/**
+ * The map-phase directive: condense one slice of a long conversation into
+ * dense notes a later synthesis step merges. Terse, factual, uncertainty-marked.
+ */
+const CHUNK_SUMMARY_INSTRUCTION = [
+  'You are condensing one slice of a long web-chat conversation (a user exploring and planning with a DeepSeek web model) into dense notes that a later synthesis step will merge into a task brief.',
+  '',
+  'Preserve exactly, and do not invent:',
+  '- decisions, constraints, requirements, and settled facts',
+  '- exact identifiers, paths, commands, error strings, code snippets, and numeric values',
+  '- anything still open, uncertain, or risky',
+  '',
+  'Output compact markdown notes. Mark uncertainty explicitly. Do not mention this summarization request or the source. Output only the notes.',
+].join('\n')
+
+/** Run one LLM distillation call and return the assembled text (undefined on failure). */
+async function runDistillCall(llm: LlmRuntime, target: { provider: string; model: string }, instruction: string, maxTokens: number): Promise<string | undefined> {
   const assembler = new BlockAssembler()
   try {
     for await (const chunk of llm.stream({
@@ -167,7 +216,7 @@ export async function distillTranscriptToBrief(ctx: Context, transcript: WebChat
         content: [{ type: 'text', text: instruction }],
         source: { kind: 'plugin', plugin: 'webchat' },
       })],
-      maxTokens: 2_048,
+      maxTokens,
       purpose: 'compaction',
     })) {
       assembler.push(chunk)
@@ -177,12 +226,55 @@ export async function distillTranscriptToBrief(ctx: Context, transcript: WebChat
   }
   const finish = assembler.finish
   if (finish.kind !== 'stop' && finish.kind !== 'max-tokens') return undefined
-  const brief = assembler.blocks()
+  const text = assembler.blocks()
     .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
     .map(block => block.text)
     .join('\n')
     .trim()
-  if (brief === '') return undefined
+  return text === '' ? undefined : text
+}
+
+/**
+ * Distill a web transcript into an executable task brief via the harness LLM.
+ * Long transcripts are distilled with map-reduce: each chunk is summarized
+ * (map, capped at `chunkTokens`), then the summaries are merged into the final
+ * brief (reduce, capped at `maxTokens`). Short transcripts take a single shot.
+ * Returns undefined (so callers fall back to the raw transcript) when the LLM
+ * service, a provider/model, or a clean completion is unavailable.
+ */
+export async function distillTranscriptToBrief(ctx: Context, transcript: WebChatTranscript, config: DistillConfig): Promise<DistillResult | undefined> {
+  const llm = ctx.get('llm') as LlmRuntime | undefined
+  if (llm === undefined) return undefined
+  const target = await resolveDistillTarget(llm, config.provider, config.model).catch(() => undefined)
+  if (target === undefined) return undefined
+
+  const maxTokens = config.maxTokens !== undefined && config.maxTokens > 0 ? config.maxTokens : DEFAULT_TRANSFER_MAX_TOKENS
+  const chunkTokens = config.chunkTokens !== undefined && config.chunkTokens > 0 ? config.chunkTokens : DEFAULT_TRANSFER_CHUNK_TOKENS
+  const chunks = chunkTranscript(transcript)
+
+  let source: string
+  if (chunks.length <= 1) {
+    // Single shot: distill the whole transcript directly.
+    source = `${DISTILL_INSTRUCTION}\n\n--- 网页对话记录 ---\n\n${renderTranscriptMarkdown(transcript, { excludeThinking: true })}`
+  } else {
+    // Map: summarize each chunk; a failed map falls back to a truncated raw
+    // excerpt so no information is silently dropped.
+    const summaries: string[] = []
+    for (let i = 0; i < chunks.length; i++) {
+      const chunkMarkdown = renderMessagesMarkdown(chunks[i], { excludeThinking: true })
+      const summary = await runDistillCall(
+        llm,
+        target,
+        `${CHUNK_SUMMARY_INSTRUCTION}\n\n--- 片段 ${i + 1} / ${chunks.length} ---\n\n${chunkMarkdown}`,
+        chunkTokens,
+      )
+      summaries.push(summary ?? `（片段 ${i + 1} 摘要失败，截取原文）\n${chunkMarkdown.slice(0, CHUNK_CHAR_BUDGET)}`)
+    }
+    source = `${DISTILL_INSTRUCTION}\n\n--- 网页对话片段摘要（共 ${chunks.length} 段，已按段摘要） ---\n\n${summaries.join('\n\n---\n\n')}`
+  }
+
+  const brief = await runDistillCall(llm, target, source, maxTokens)
+  if (brief === undefined) return undefined
   return { brief, provider: target.provider, model: target.model }
 }
 

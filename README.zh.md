@@ -35,7 +35,7 @@ dsh plugin --profile web add github:xmuwenxiang/dsh-web-chat
 
 ## 配置
 
-插件设置中可调整：`browserChannel`（浏览器渠道，默认 auto）、`browserExecutablePath`（显式浏览器路径）、`browserProxy`（代理）、`browserHeadless`（聊天是否无头，默认 true——登录窗口始终可见且登录后自动关闭）、`replyTimeoutMs`（回复等待上限）、`transferDistill` / `transferProvider` / `transferModel`（转移时的蒸馏模型）。
+插件设置中可调整：`browserChannel`（浏览器渠道，默认 auto）、`browserExecutablePath`（显式浏览器路径）、`browserProxy`（代理）、`browserHeadless`（聊天是否无头，默认 true——登录窗口始终可见且登录后自动关闭）、`replyTimeoutMs`（回复等待上限）、`transferDistill` / `transferProvider` / `transferModel`（转移时的蒸馏模型）、`transferMaxTokens`（最终简报输出上限，默认 4096）、`transferChunkTokens`（长对话分块摘要每段上限，默认 1024）。
 
 ## 环境要求
 

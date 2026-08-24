@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Image input (multimodal)**: `webchat_send` and the panel composer can attach local images (absolute paths) to a prompt; the engine uploads them through the page's file input and records them in the transcript.
 - **Web conversation recovery/sync**: `webchat_recover` and the panel "从网页恢复" button list the web-side conversations missing locally and import one (idempotent by title); `webchat_status` now lists web conversations and flags the unimported ones.
 - **Continue into an existing session**: `webchat_transfer` (and the panel "延续到会话" picker) can append the distilled brief as a fresh user message to an existing harness session (`targetSessionId`) instead of always creating a new one — multi-round "same task, another web round" resume.
+- **Long-conversation distillation (map-reduce)**: long transcripts are split into character-budgeted chunks (never splitting a message), each summarized then merged into the final brief; new settings `transferMaxTokens` (final brief cap, default 4096) and `transferChunkTokens` (per-chunk cap, default 1024).
 
 ### Changed
 

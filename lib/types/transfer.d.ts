@@ -23,7 +23,11 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type { SessionEvent } from '@deepseek-ai/dsh-session';
 import type { Workspace } from '@deepseek-ai/dsh-workspace';
-import type { TransferMode, WebChatTranscript } from './protocol.ts';
+import type { TransferMode, WebChatMessage, WebChatTranscript } from './protocol.ts';
+/** Render the message list of a transcript (no header) to markdown. */
+export declare function renderMessagesMarkdown(messages: WebChatMessage[], options?: {
+    excludeThinking?: boolean;
+}): string;
 /** Render one transcript to markdown for harness consumption. */
 export declare function renderTranscriptMarkdown(transcript: WebChatTranscript, options?: {
     excludeThinking?: boolean;
@@ -42,7 +46,17 @@ export interface DistillConfig {
     provider: string;
     /** Model id for the distillation call; empty = auto-detect. */
     model: string;
+    /** Output-token cap for the final brief (single-shot / reduce). Default 4096. */
+    maxTokens?: number;
+    /** Output-token cap for each per-chunk map summary. Default 1024. */
+    chunkTokens?: number;
 }
+/** Default output-token cap for the final distillation brief. */
+export declare const DEFAULT_TRANSFER_MAX_TOKENS = 4096;
+/** Default output-token cap for one chunk summary in the map phase. */
+export declare const DEFAULT_TRANSFER_CHUNK_TOKENS = 1024;
+/** Character budget per chunk when splitting a long transcript for map-reduce. */
+export declare const CHUNK_CHAR_BUDGET = 12000;
 /** A successful distillation result. */
 export interface DistillResult {
     brief: string;
@@ -50,7 +64,17 @@ export interface DistillResult {
     model: string;
 }
 /**
+ * Split a transcript's messages into chunks of at most `budget` characters
+ * (sum of `message.content.length`), never splitting a single message: a
+ * message larger than the budget becomes its own (oversized) chunk. Streaming
+ * assistant messages are skipped (they were never completed).
+ */
+export declare function chunkTranscript(transcript: WebChatTranscript, budget?: number): WebChatMessage[][];
+/**
  * Distill a web transcript into an executable task brief via the harness LLM.
+ * Long transcripts are distilled with map-reduce: each chunk is summarized
+ * (map, capped at `chunkTokens`), then the summaries are merged into the final
+ * brief (reduce, capped at `maxTokens`). Short transcripts take a single shot.
  * Returns undefined (so callers fall back to the raw transcript) when the LLM
  * service, a provider/model, or a clean completion is unavailable.
  */
