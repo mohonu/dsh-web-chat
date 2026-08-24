@@ -151,6 +151,12 @@ export declare class DeepSeekWebEngine {
     /** Find the composer textarea (defensive selector list). */
     private composerLocator;
     /**
+     * Upload local image files into the composer through the page's (usually
+     * hidden) file input. `setInputFiles` fires the input's change event, which
+     * is how DeepSeek picks up attachments without clicking its native dialog.
+     */
+    private attachImages;
+    /**
      * Send a message through the real web page.
      * @param text - message text.
      * @param wait - when true (agent tools), resolve with the final reply after
@@ -158,7 +164,7 @@ export declare class DeepSeekWebEngine {
      *   is submitted — the reply streams in the background into the transcript
      *   and the panel polls it live.
      */
-    send(text: string, wait?: boolean): Promise<SendResult>;
+    send(text: string, wait?: boolean, images?: string[]): Promise<SendResult>;
     private sendImpl;
     /**
      * Background reply loop. Primary source is the teed SSE stream (raw model

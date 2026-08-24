@@ -14,11 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dual-channel reply capture**: the injected capture now tees both `XMLHttpRequest` and `fetch` for the `/chat/completion` stream, so replies keep streaming even if the page switches from XHR to `fetch` (DOM scraping remains the last-resort fallback).
 - **Structured error codes**: send results and state now carry a `code` (`NEED_LOGIN` / `PAGE_CHANGED` / `TIMEOUT` / `NETWORK`) so the panel and `webchat_send` can act on a failure — prompt the login window vs. suggest a plugin upgrade — instead of only printing a generic timeout.
 - **Parser unit tests**: fixtures pin the SSE ops protocol shapes (`test/parse-stream.test.ts`) — snapshot, fragment append, content delta, search/TOOL_OPEN steps, citation resolution, and malformed streams.
+- **Image input (multimodal)**: `webchat_send` and the panel composer can attach local images (absolute paths) to a prompt; the engine uploads them through the page's file input and records them in the transcript.
 
 ### Changed
 
 - `webchat_transfer` accepts optional `workspaceId` and `cwd` parameters.
 - `webchat_send` reports a structured `code` alongside its error for actionable handling.
+
+### Fixed
+
+- `webchat_send` now waits for the completed reply (`wait=true`) instead of returning immediately with an empty reply.
 
 ## [0.1.0] - 2026-08-20
 

@@ -17,7 +17,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
-import { transferToHarnessSession } from '../src/transfer.ts'
+import { renderTranscriptMarkdown, transferToHarnessSession } from '../src/transfer.ts'
 import type { WebChatTranscript } from '../src/protocol.ts'
 
 const transcript: WebChatTranscript = {
@@ -144,4 +144,16 @@ test('workspace.path 转移：realpath 规范化后 resolveByPath 并 attach', a
   assert.equal(result.workspaceId, 'ws-2')
   assert.equal(ws._calls.length, 1)
   assert.ok(persistence.created[0]!.cwd.startsWith('/'), 'cwd 应为绝对路径')
+})
+
+test('renderTranscriptMarkdown 标注图片附件', () => {
+  const withImages: WebChatTranscript = {
+    ...transcript,
+    messages: [
+      { id: 'm1', role: 'user', content: '看看这个', ts: Date.now(), attachments: ['/tmp/a.png', '/tmp/b.png'] },
+      { id: 'm2', role: 'assistant', content: '好的', ts: Date.now() },
+    ],
+  }
+  const markdown = renderTranscriptMarkdown(withImages)
+  assert.match(markdown, /图片附件：\/tmp\/a\.png、\/tmp\/b\.png/)
 })

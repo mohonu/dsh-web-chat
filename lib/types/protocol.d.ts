@@ -16,6 +16,8 @@ export interface WebChatMessage {
     readonly streaming?: boolean;
     /** Set when the exchange failed (content may be partial). */
     readonly error?: string;
+    /** Local absolute paths of images attached to a user message. */
+    readonly attachments?: string[];
 }
 /** One web chat session transcript (persisted locally). */
 export interface WebChatTranscript {

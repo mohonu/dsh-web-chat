@@ -44,8 +44,8 @@ export class WebChatApi {
     return request<{ ok: boolean; chatId?: string }>(WEBChat_API.newChat)
   }
 
-  send(text: string): Promise<EndpointResult<{ ok: boolean; chatId?: string }>> {
-    return request<{ ok: boolean; chatId?: string }>(WEBChat_API.send, { text })
+  send(text: string, images?: string[]): Promise<EndpointResult<{ ok: boolean; chatId?: string }>> {
+    return request<{ ok: boolean; chatId?: string }>(WEBChat_API.send, { text, images })
   }
 
   stop(): Promise<EndpointResult<{ ok: boolean }>> {

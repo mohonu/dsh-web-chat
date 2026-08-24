@@ -143,7 +143,10 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
         }
         // GUI sends resolve immediately; the reply streams in the background
         // into the transcript and the panel polls /state for live updates.
-        const result = await engine.send(text, false)
+        const images = Array.isArray(body?.['images'])
+          ? (body['images'] as unknown[]).filter(value => typeof value === 'string').map(value => value as string)
+          : undefined
+        const result = await engine.send(text, false, images)
         writeJson(res, result.ok ? 200 : 500, result)
       },
     },

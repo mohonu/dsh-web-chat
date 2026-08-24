@@ -62,6 +62,9 @@ export declare const zh: {
     readonly 'composer.hint': "Enter 发送 · Shift+Enter 换行";
     readonly 'composer.busy': "正在生成回复…";
     readonly 'composer.notLoggedIn': "请先登录 DeepSeek 网页端";
+    readonly 'composer.attach': "图片";
+    readonly 'composer.attach.hint': "添加本地图片（绝对路径，逗号/换行分隔）";
+    readonly 'composer.attach.placeholder': "图片绝对路径，逗号或换行分隔";
     readonly 'empty.eyebrow': "DeepSeek 网页端 · 桥接开发";
     readonly 'empty.title': "先聊，再交付";
     readonly 'empty.body': "登录网页端即可开始对话；任何对话都能蒸馏成任务简报，转入 Harness 会话继续开发。";
@@ -132,6 +135,9 @@ export declare const en: {
     'composer.hint': string;
     'composer.busy': string;
     'composer.notLoggedIn': string;
+    'composer.attach': string;
+    'composer.attach.hint': string;
+    'composer.attach.placeholder': string;
     'empty.eyebrow': string;
     'empty.title': string;
     'empty.body': string;

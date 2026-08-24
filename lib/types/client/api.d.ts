@@ -22,7 +22,7 @@ export declare class WebChatApi {
         ok: boolean;
         chatId?: string;
     }>>;
-    send(text: string): Promise<EndpointResult<{
+    send(text: string, images?: string[]): Promise<EndpointResult<{
         ok: boolean;
         chatId?: string;
     }>>;

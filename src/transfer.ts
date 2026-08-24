@@ -62,6 +62,10 @@ export function renderTranscriptMarkdown(transcript: WebChatTranscript, options?
     lines.push(`## ${ROLE_LABEL[message.role]}`)
     lines.push('')
     lines.push(content === '' ? '（无内容）' : content)
+    if (message.attachments !== undefined && message.attachments.length > 0) {
+      lines.push('')
+      lines.push(`> 📎 图片附件：${message.attachments.join('、')}`)
+    }
     if (message.error !== undefined) {
       lines.push('')
       lines.push(`> ⚠️ 该条回复可能不完整：${message.error}`)

@@ -52,6 +52,8 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
   const [state, setState] = useState<WebChatState | null>(null)
   const [viewChatId, setViewChatId] = useState<string | undefined>(undefined)
   const [draft, setDraft] = useState('')
+  const [attachOpen, setAttachOpen] = useState(false)
+  const [imagePaths, setImagePaths] = useState('')
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null)
   const [transferring, setTransferring] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -181,17 +183,19 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
 
   const send = useCallback(async (): Promise<void> => {
     const text = draft.trim()
-    if (text === '' || busy) return
+    const images = imagePaths.split(/[\n,;]+/).map(path => path.trim()).filter(path => path !== '')
+    if ((text === '' && images.length === 0) || busy) return
     setDraft('')
+    setImagePaths('')
     pinnedRef.current = true // follow the reply we just sent
     try {
-      const result = await api.send(text)
+      const result = await api.send(text, images.length > 0 ? images : undefined)
       if (result.ok !== true) showToast(result.error ?? 'send failed', true)
       else setViewChatId(result.chatId)
     } catch (error) {
       showToast(String(error), true)
     }
-  }, [draft, busy, api, showToast])
+  }, [draft, imagePaths, busy, api, showToast])
 
   const stop = useCallback(async (): Promise<void> => {
     await api.stop().catch(() => undefined)
@@ -549,7 +553,26 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
                 }
               }}
             />
+            {attachOpen && (
+              <input
+                className={css.attachInput}
+                value={imagePaths}
+                placeholder={tt('composer.attach.placeholder')}
+                disabled={busy || loggedIn !== true}
+                onChange={event => setImagePaths(event.target.value)}
+              />
+            )}
             <div className={css.composerFooter}>
+              <button
+                className={css.toggleButton}
+                data-active={attachOpen ? 'true' : undefined}
+                title={tt('composer.attach.hint')}
+                aria-pressed={attachOpen}
+                disabled={busy || loggedIn !== true}
+                onClick={() => setAttachOpen(open => !open)}
+              >
+                {tt('composer.attach')}
+              </button>
               <span className={css.composerHint}>{tt('composer.hint')}</span>
               <div className={css.composerSpacer} />
               {streaming ? (
@@ -559,7 +582,7 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
               ) : (
                 <button
                   className={`${css.button} ${css.buttonPrimary}`}
-                  disabled={busy || loggedIn !== true || draft.trim() === ''}
+                  disabled={busy || loggedIn !== true || (draft.trim() === '' && imagePaths.trim() === '')}
                   onClick={() => { void send() }}
                 >
                   {tt('action.send')}

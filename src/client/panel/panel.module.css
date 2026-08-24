@@ -657,6 +657,21 @@ html[data-dsh-webchat-active]:not([data-dsh-taskboard-active]):not([data-dsh-ssh
   color: var(--dsw-alias-label-tertiary);
 }
 
+.attachInput {
+  margin: 0 12px 4px;
+  padding: 7px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer1, var(--dsw-alias-bg-elevated));
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.attachInput::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
 .composerFooter {
   display: flex;
   align-items: center;

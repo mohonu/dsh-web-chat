@@ -94,9 +94,10 @@ export function webChatStatusTool(engine: DeepSeekWebEngine, store: TranscriptSt
 export function webChatSendTool(engine: DeepSeekWebEngine) {
   return defineTool({
     name: 'webchat_send',
-    description: 'Send one message through the DeepSeek 网页端 (chat.deepseek.com) using the web model — your web session, no API billing. The assistant reply streams until complete and returns as markdown. Requires the user to have logged into the web chat once (webchat_status → loggedIn true). Best for asking the web model to explain/design/review; do not use for file operations. Triggers: 网页端提问, deepseek web, chatgpt mode.',
+    description: 'Send one message through the DeepSeek 网页端 (chat.deepseek.com) using the web model — your web session, no API billing. The assistant reply streams until complete and returns as markdown. Optionally attach local image files (absolute paths) for multimodal prompts. Requires the user to have logged into the web chat once (webchat_status → loggedIn true). Best for asking the web model to explain/design/review; do not use for file operations. Triggers: 网页端提问, deepseek web, chatgpt mode.',
     parameters: {
       text: { type: 'string', required: true, description: 'The message to send to deepseek-chat on the web.' },
+      images: { type: 'array', items: { type: 'string' }, description: 'Optional local absolute paths of image files to attach (multimodal prompt).' },
     },
     output: {
       schema: {
@@ -125,10 +126,14 @@ export function webChatSendTool(engine: DeepSeekWebEngine) {
         ].join('\n'))
       },
     },
-    async execute(args: { text?: string }): Promise<{ reply: string; error?: string; code?: string; partial: boolean }> {
+    async execute(args: { text?: string; images?: unknown }): Promise<{ reply: string; error?: string; code?: string; partial: boolean }> {
       const textValue = typeof args?.text === 'string' ? args.text.trim() : ''
       if (textValue === '') return { reply: '', error: '缺少 text 参数', partial: false }
-      const result = await engine.send(textValue)
+      const images = Array.isArray(args?.images)
+        ? args.images.filter(value => typeof value === 'string').map(value => value as string)
+        : undefined
+      // wait=true so the tool returns the completed reply (the GUI path is fire-and-forget).
+      const result = await engine.send(textValue, true, images)
       return {
         reply: result.reply ?? '',
         error: result.error,

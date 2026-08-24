@@ -840,6 +840,33 @@ export class DeepSeekWebEngine {
   }
 
   /**
+   * Upload local image files into the composer through the page's (usually
+   * hidden) file input. `setInputFiles` fires the input's change event, which
+   * is how DeepSeek picks up attachments without clicking its native dialog.
+   */
+  private async attachImages(paths: string[]): Promise<{ ok: boolean; error?: string }> {
+    if (this.page === undefined) return { ok: false, error: '浏览器未启动' }
+    if (paths.length === 0) return { ok: true }
+    const selectors = [
+      'input[type="file"][accept*="image" i]',
+      'input[type="file"]',
+    ]
+    for (const selector of selectors) {
+      const input = this.page.locator(selector).first()
+      if (await input.count().catch(() => 0) === 0) continue
+      try {
+        await input.setInputFiles(paths)
+        // Let the upload + preview render settle before submitting.
+        await this.page.waitForTimeout(1_000)
+        return { ok: true }
+      } catch (error) {
+        return { ok: false, error: `图片上传失败：${String(error)}` }
+      }
+    }
+    return { ok: false, error: '未找到图片上传入口（页面可能已改版或当前会话不支持图片）' }
+  }
+
+  /**
    * Send a message through the real web page.
    * @param text - message text.
    * @param wait - when true (agent tools), resolve with the final reply after
@@ -847,11 +874,11 @@ export class DeepSeekWebEngine {
    *   is submitted — the reply streams in the background into the transcript
    *   and the panel polls it live.
    */
-  send(text: string, wait = false): Promise<SendResult> {
-    return this.queue.run(() => this.sendImpl(text, wait))
+  send(text: string, wait = false, images?: string[]): Promise<SendResult> {
+    return this.queue.run(() => this.sendImpl(text, wait, images))
   }
 
-  private async sendImpl(text: string, wait: boolean): Promise<SendResult> {
+  private async sendImpl(text: string, wait: boolean, images?: string[]): Promise<SendResult> {
     this.setLastError(undefined)
     if (this.page === undefined) {
       try {
@@ -870,7 +897,10 @@ export class DeepSeekWebEngine {
     }
     try {
       const chat = this.store.ensureActiveChat(this.deepThink ? 'deepseek-reasoner' : 'deepseek-chat')
-      const userMessage: WebChatMessage = { id: randomUUID(), role: 'user', content: text, ts: Date.now() }
+      const userMessage: WebChatMessage = {
+        id: randomUUID(), role: 'user', content: text, ts: Date.now(),
+        ...(images !== undefined && images.length > 0 ? { attachments: images } : {}),
+      }
       this.store.appendMessage(chat.id, userMessage)
       if (chat.title === '新的对话') {
         this.store.renameChat(chat.id, text.replace(/\s+/g, ' ').slice(0, 40))
@@ -885,6 +915,15 @@ export class DeepSeekWebEngine {
       await composer.fill(text, { timeout: 10_000 }).catch(async () => {
         await composer.type(text, { delay: 5 })
       })
+      // Attach any images before submitting (setInputFiles on the page's file input).
+      if (images !== undefined && images.length > 0) {
+        const attach = await this.attachImages(images)
+        if (!attach.ok) {
+          const message = attach.error ?? '图片上传失败'
+          this.setLastError(message, 'NETWORK')
+          return { ok: false, error: message, code: 'NETWORK' }
+        }
+      }
       // Reset the stream capture so the reply loop only sees this request.
       await page.evaluate(() => {
         const w = window as unknown as { __wcStream?: StreamCapture }
