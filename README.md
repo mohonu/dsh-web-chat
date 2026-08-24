@@ -27,6 +27,10 @@ dsh plugin --profile web add github:xmuwenxiang/dsh-web-chat
 > `lib/` is committed, so git installs need no build step.
 
 ## First use
+<img width="1920" height="958" alt="image" src="https://github.com/user-attachments/assets/2df5acdb-b0b5-404a-a381-3dba98650baa" />
+
+<img width="1920" height="958" alt="image" src="https://github.com/user-attachments/assets/7516776d-0b58-452c-bd58-e35ea39dc4ac" />
+
 
 1. Open the "网页聊天" (Web Chat) sidebar entry in the Web GUI.
 2. Click "打开登录窗口" and sign in to DeepSeek in the browser window that appears.
