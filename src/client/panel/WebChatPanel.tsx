@@ -91,38 +91,35 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
   const workspaceItems = workspaceSnapshot.items
   const workspaceBaselinesReady = workspaceSnapshot.baselinesReady
 
-  // Workspace-scoped client list — fallback when the all-sessions route fails
-  // (e.g. the host has not restarted yet), so the picker never renders empty.
+  // Sessions feed for the "continue into" picker, scoped to the active
+  // workspace: a task is continued inside the workspace the user is working in,
+  // so cross-workspace sessions are hidden.
   const sessionSnapshot = useSyncExternalStore(
     useCallback((listener: () => void) => sessions.list.subscribe(listener), [sessions]),
     () => sessions.list.getSnapshot(),
   )
-  const fallbackTargets = sessionSnapshot.ids.flatMap(id => {
+
+  // The workspace the user is currently in: the current session's workspace,
+  // falling back to the most recently active workspace.
+  const currentWorkspace = (() => {
+    const currentSessionId = sessions.list.getSnapshot().current
+    if (currentSessionId !== undefined) {
+      const bySession = workspaceItems.find(ws => ws.sessionIds.includes(currentSessionId))
+      if (bySession !== undefined) return bySession
+    }
+    return workspaceItems.find(ws => ws.workspaceId === workspaceSnapshot.recentWorkspaceId)
+  })()
+  const groupedSessionIds = new Set(workspaceItems.flatMap(ws => ws.sessionIds))
+  const continuationTargets = sessionSnapshot.ids.flatMap(id => {
     const session = sessionSnapshot.byId[id]
     if (session === undefined || session.blank === true) return []
-    return [{ sessionId: session.id, title: session.displayTitle, running: session.running, blank: false }]
-  })
-
-  // All-session feed for the "continue into" picker, fetched from the host:
-  // the client `sessions.list` is scoped to the active workspace view, so it
-  // cannot enumerate every session.
-  const [harnessSessions, setHarnessSessions] = useState<Array<{ sessionId: string; title: string; running: boolean; blank: boolean }>>([])
-  const [sessionsLoaded, setSessionsLoaded] = useState(false)
-  const loadHarnessSessions = useCallback(async (): Promise<void> => {
-    try {
-      const result = await api.harnessSessions()
-      if (result.ok === true && Array.isArray(result.sessions)) {
-        setHarnessSessions(result.sessions)
-        setSessionsLoaded(true)
-        return
-      }
-    } catch {
-      // Fall through to the client-list fallback.
+    if (currentWorkspace !== undefined) {
+      if (!currentWorkspace.sessionIds.includes(id)) return []
+    } else if (groupedSessionIds.has(id)) {
+      return []
     }
-    setSessionsLoaded(false)
-  }, [api])
-  useEffect(() => { void loadHarnessSessions() }, [loadHarnessSessions])
-  const continuationTargets = sessionsLoaded ? harnessSessions.filter(session => session.blank !== true) : fallbackTargets
+    return [{ sessionId: session.id, title: session.displayTitle, running: session.running }]
+  })
 
   // Pick a default target workspace once the list is ready: prefer the current
   // session's workspace, then the most recently active workspace, else ungrouped.
@@ -719,7 +716,6 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
               disabled={continuationTargets.length === 0}
               title={tt('transfer.session.hint')}
               aria-label={tt('transfer.session.label')}
-              onFocus={() => { void loadHarnessSessions() }}
               onChange={event => setTargetSessionId(event.target.value === '' ? undefined : event.target.value)}
             >
               <option value="">{tt('transfer.session.new')}</option>

@@ -113,5 +113,4 @@ export const WEBChat_API = {
   clearChats: '/api/dsh-webchat/clear',
   webChats: '/api/dsh-webchat/web-chats',
   recover: '/api/dsh-webchat/recover',
-  harnessSessions: '/api/dsh-webchat/harness-sessions',
 } as const

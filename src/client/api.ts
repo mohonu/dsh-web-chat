@@ -87,8 +87,4 @@ export class WebChatApi {
   recover(title: string): Promise<EndpointResult<{ ok: boolean; chatId?: string; title?: string; created?: boolean }>> {
     return request<{ ok: boolean; chatId?: string; title?: string; created?: boolean }>(WEBChat_API.recover, { title })
   }
-
-  harnessSessions(): Promise<EndpointResult<{ ok: boolean; sessions: Array<{ sessionId: string; title: string; running: boolean; blank: boolean }> }>> {
-    return request<{ ok: boolean; sessions: Array<{ sessionId: string; title: string; running: boolean; blank: boolean }> }>(WEBChat_API.harnessSessions)
-  }
 }

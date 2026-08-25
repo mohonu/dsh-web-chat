@@ -70,14 +70,5 @@ export declare class WebChatApi {
         title?: string;
         created?: boolean;
     }>>;
-    harnessSessions(): Promise<EndpointResult<{
-        ok: boolean;
-        sessions: Array<{
-            sessionId: string;
-            title: string;
-            running: boolean;
-            blank: boolean;
-        }>;
-    }>>;
 }
 export {};
