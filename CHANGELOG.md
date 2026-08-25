@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Web conversation recovery/sync**: `webchat_recover` and the panel "从网页恢复" button list the web-side conversations missing locally and import one (idempotent by title); `webchat_status` now lists web conversations and flags the unimported ones.
 - **Continue into an existing session**: `webchat_transfer` (and the panel "延续到会话" picker) can append the distilled brief as a fresh user message to an existing harness session (`targetSessionId`) instead of always creating a new one — multi-round "same task, another web round" resume.
 - **Long-conversation distillation (map-reduce)**: long transcripts are split into character-budgeted chunks (never splitting a message), each summarized then merged into the final brief; new settings `transferMaxTokens` (final brief cap, default 4096) and `transferChunkTokens` (per-chunk cap, default 1024).
+- **All-sessions continuation picker**: the "延续到会话" list now enumerates every harness session (live + cold) via a new `/harness-sessions` route — titles come from the projection cache with a cwd-basename fallback — instead of the workspace-scoped client list; it falls back to the client list if the host route is unavailable.
 
 ### Changed
 

@@ -104,4 +104,5 @@ export declare const WEBChat_API: {
     readonly clearChats: "/api/dsh-webchat/clear";
     readonly webChats: "/api/dsh-webchat/web-chats";
     readonly recover: "/api/dsh-webchat/recover";
+    readonly harnessSessions: "/api/dsh-webchat/harness-sessions";
 };

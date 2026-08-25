@@ -91,14 +91,38 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
   const workspaceItems = workspaceSnapshot.items
   const workspaceBaselinesReady = workspaceSnapshot.baselinesReady
 
-  // Existing-session feed for the "continue into" transfer target picker.
+  // Workspace-scoped client list — fallback when the all-sessions route fails
+  // (e.g. the host has not restarted yet), so the picker never renders empty.
   const sessionSnapshot = useSyncExternalStore(
     useCallback((listener: () => void) => sessions.list.subscribe(listener), [sessions]),
     () => sessions.list.getSnapshot(),
   )
-  const continuationTargets = sessionSnapshot.ids
-    .map(id => sessionSnapshot.byId[id])
-    .filter(session => session !== undefined && session.blank !== true)
+  const fallbackTargets = sessionSnapshot.ids.flatMap(id => {
+    const session = sessionSnapshot.byId[id]
+    if (session === undefined || session.blank === true) return []
+    return [{ sessionId: session.id, title: session.displayTitle, running: session.running, blank: false }]
+  })
+
+  // All-session feed for the "continue into" picker, fetched from the host:
+  // the client `sessions.list` is scoped to the active workspace view, so it
+  // cannot enumerate every session.
+  const [harnessSessions, setHarnessSessions] = useState<Array<{ sessionId: string; title: string; running: boolean; blank: boolean }>>([])
+  const [sessionsLoaded, setSessionsLoaded] = useState(false)
+  const loadHarnessSessions = useCallback(async (): Promise<void> => {
+    try {
+      const result = await api.harnessSessions()
+      if (result.ok === true && Array.isArray(result.sessions)) {
+        setHarnessSessions(result.sessions)
+        setSessionsLoaded(true)
+        return
+      }
+    } catch {
+      // Fall through to the client-list fallback.
+    }
+    setSessionsLoaded(false)
+  }, [api])
+  useEffect(() => { void loadHarnessSessions() }, [loadHarnessSessions])
+  const continuationTargets = sessionsLoaded ? harnessSessions.filter(session => session.blank !== true) : fallbackTargets
 
   // Pick a default target workspace once the list is ready: prefer the current
   // session's workspace, then the most recently active workspace, else ungrouped.
@@ -695,12 +719,13 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
               disabled={continuationTargets.length === 0}
               title={tt('transfer.session.hint')}
               aria-label={tt('transfer.session.label')}
+              onFocus={() => { void loadHarnessSessions() }}
               onChange={event => setTargetSessionId(event.target.value === '' ? undefined : event.target.value)}
             >
               <option value="">{tt('transfer.session.new')}</option>
               {continuationTargets.map(session => (
-                <option key={session.id} value={session.id}>
-                  {session.displayTitle}{session.running === true ? ' ·●' : ''}
+                <option key={session.sessionId} value={session.sessionId}>
+                  {session.title}{session.running === true ? ' ·●' : ''}
                 </option>
               ))}
             </select>

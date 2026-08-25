@@ -15,6 +15,7 @@ import type { TranscriptStore } from './store.ts'
 import type { WebChatTranscript } from './protocol.ts'
 import { exportTranscriptFile, transferToHarnessSession } from './transfer.ts'
 import type { DistillConfig } from './transfer.ts'
+import { listHarnessSessions } from './harness.ts'
 
 /** Cap on JSON request bodies (chat ops are small). */
 const MAX_JSON_BODY_BYTES = 64 * 1024
@@ -244,6 +245,19 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
         const localTitles = new Set(store.titles())
         const missing = web.filter(item => !localTitles.has(item.title)).map(item => item.title)
         writeJson(res, 200, { ok: true, web, missing })
+      },
+    },
+    {
+      kind: 'exact',
+      path: '/api/dsh-webchat/harness-sessions',
+      handler: async (req, res) => {
+        if (!guard(req, res)) return
+        try {
+          const sessions = await listHarnessSessions(ctx)
+          writeJson(res, 200, { ok: true, sessions })
+        } catch (error) {
+          writeJson(res, 500, { ok: false, error: String(error) })
+        }
       },
     },
     {
