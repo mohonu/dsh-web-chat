@@ -99,22 +99,18 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
     () => sessions.list.getSnapshot(),
   )
 
-  // The workspace the user is currently in: the current session's workspace,
-  // falling back to the most recently active workspace.
-  const currentWorkspace = (() => {
-    const currentSessionId = sessions.list.getSnapshot().current
-    if (currentSessionId !== undefined) {
-      const bySession = workspaceItems.find(ws => ws.sessionIds.includes(currentSessionId))
-      if (bySession !== undefined) return bySession
-    }
-    return workspaceItems.find(ws => ws.workspaceId === workspaceSnapshot.recentWorkspaceId)
-  })()
+  // The workspace the "continue into" list is scoped to. The transfer-target
+  // workspace selector drives it (defaults to the current session's workspace,
+  // set by the effect below); "ungrouped" leaves it undefined.
+  const selectedWorkspace = targetWorkspaceId === undefined
+    ? undefined
+    : workspaceItems.find(ws => ws.workspaceId === targetWorkspaceId)
   const groupedSessionIds = new Set(workspaceItems.flatMap(ws => ws.sessionIds))
   const continuationTargets = sessionSnapshot.ids.flatMap(id => {
     const session = sessionSnapshot.byId[id]
     if (session === undefined || session.blank === true) return []
-    if (currentWorkspace !== undefined) {
-      if (!currentWorkspace.sessionIds.includes(id)) return []
+    if (selectedWorkspace !== undefined) {
+      if (!selectedWorkspace.sessionIds.includes(id)) return []
     } else if (groupedSessionIds.has(id)) {
       return []
     }
@@ -123,10 +119,11 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
 
   // Pick a default target workspace once the list is ready: prefer the current
   // session's workspace, then the most recently active workspace, else ungrouped.
-  const workspaceDefaultSet = useRef(false)
+  // Keep the transfer-target workspace defaulted to the active workspace until
+  // the user explicitly picks one; re-syncs as the current session moves.
+  const workspaceOverridden = useRef(false)
   useEffect(() => {
-    if (workspaceDefaultSet.current || !workspaceBaselinesReady) return
-    workspaceDefaultSet.current = true
+    if (workspaceOverridden.current || !workspaceBaselinesReady) return
     const currentSessionId = sessions.list.getSnapshot().current
     const currentWorkspace = currentSessionId === undefined ? undefined : workspaceItems.find(ws => ws.sessionIds.includes(currentSessionId))
     setTargetWorkspaceId(currentWorkspace?.workspaceId ?? workspaceSnapshot.recentWorkspaceId)
@@ -731,7 +728,7 @@ export function WebChatPanel({ api, tt, sessions, workspaces, currentCwd }: WebC
               disabled={targetSessionId !== undefined}
               title={tt('transfer.workspace.hint')}
               aria-label={tt('transfer.workspace.label')}
-              onChange={event => setTargetWorkspaceId(event.target.value === '' ? undefined : event.target.value)}
+              onChange={event => { workspaceOverridden.current = true; setTargetWorkspaceId(event.target.value === '' ? undefined : event.target.value) }}
             >
               <option value="">{tt('transfer.workspace.ungrouped')}</option>
               {workspaceItems.map(ws => (
