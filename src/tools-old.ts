@@ -14,8 +14,6 @@ import type { TranscriptStore } from './store.ts'
 import { renderTranscriptMarkdown, transferToHarnessSession } from './transfer.ts'
 import type { DistillConfig } from './transfer.ts'
 import type { WebChatErrorCode } from './protocol.ts'
-import type { WebChatMcpBridge } from './mcp-bridge.ts'
-import type { McpOrchestrator } from './mcp-orchestrator.ts'
 
 /** Actionable hint for a structured engine error code (surfaced to the agent). */
 function errorCodeHint(code: WebChatErrorCode | undefined): string {
@@ -49,12 +47,11 @@ function renderChats(store: TranscriptStore): string {
     const last = chat.messages.at(-1)
     const preview = last === undefined ? '' : ` · 最后: ${last.content.replace(/\s+/g, ' ').slice(0, 60)}`
     return `${chat.id} | ${chat.title} | ${chat.model} | ${messages} 条消息 | ${new Date(chat.updatedAt).toLocaleString()}${preview}`
-  }).join('
-')
+  }).join('\n')
 }
 
 /** The engine-status tool. */
-export function webChatStatusTool(engine: DeepSeekWebEngine, store: TranscriptStore, listWorkspaces?: () => WorkspaceRef[] | undefined, mcpBridge?: WebChatMcpBridge) {
+export function webChatStatusTool(engine: DeepSeekWebEngine, store: TranscriptStore, listWorkspaces?: () => WorkspaceRef[] | undefined) {
   return defineTool({
     name: 'webchat_status',
     description: 'Report the DeepSeek 网页端 (chat.deepseek.com) web-chat state: engine status, login state, active chat, stored transcripts, and the harness workspaces available as webchat_transfer targets. Triggers: webchat, deepseek 网页端, 网页聊天. Use before webchat_send to confirm login.',
@@ -80,19 +77,14 @@ export function webChatStatusTool(engine: DeepSeekWebEngine, store: TranscriptSt
         `search: ${String(status.search)}`,
         `busy: ${String(status.busy)}`,
         `activeChat: ${active === undefined ? '-' : `${active.id} (${active.title})`}`,
-        `chats:
-${renderChats(store)}`,
+        `chats:\n${renderChats(store)}`,
       ]
       const web = await engine.listWebConversations().catch(() => [] as Array<{ title: string }>)
       if (web.length > 0) {
         const localTitles = new Set(store.list().map(chat => chat.title))
         const missing = web.filter(item => !localTitles.has(item.title)).map(item => item.title)
-        lines.push(`webChats:
-${web.map(item => `  - ${item.title}`).join('
-')}`)
-        if (missing.length > 0) lines.push(`webChatsNotImported (use webchat_recover):
-${missing.map(title => `  - ${title}`).join('
-')}`)
+        lines.push(`webChats:\n${web.map(item => `  - ${item.title}`).join('\n')}`)
+        if (missing.length > 0) lines.push(`webChatsNotImported (use webchat_recover):\n${missing.map(title => `  - ${title}`).join('\n')}`)
       }
       const workspaces = listWorkspaces?.()
       if (workspaces !== undefined) {
@@ -100,22 +92,13 @@ ${missing.map(title => `  - ${title}`).join('
         if (workspaces.length === 0) lines.push('  (none)')
         else for (const ws of workspaces) lines.push(`  ${ws.id} | ${ws.title} | ${ws.path}`)
       }
-      if (mcpBridge !== undefined) {
-        const mcpTools = mcpBridge.listTools()
-        if (mcpTools.length > 0) {
-          lines.push(`mcpTools: ${mcpTools.map(t => t.name).join(', ')}`)
-        } else {
-          lines.push('mcpTools: (none)')
-        }
-      }
-      return { report: lines.join('
-') }
+      return { report: lines.join('\n') }
     },
   })
 }
 
 /** The send-via-web tool. */
-export function webChatSendTool(engine: DeepSeekWebEngine, mcp?: McpOrchestrator) {
+export function webChatSendTool(engine: DeepSeekWebEngine) {
   return defineTool({
     name: 'webchat_send',
     description: 'Send one message through the DeepSeek 网页端 (chat.deepseek.com) using the web model — your web session, no API billing. The assistant reply streams until complete and returns as markdown. Optionally attach local image files (absolute paths) for multimodal prompts. Requires the user to have logged into the web chat once (webchat_status → loggedIn true). Best for asking the web model to explain/design/review; do not use for file operations. Triggers: 网页端提问, deepseek web, chatgpt mode.',
@@ -147,8 +130,7 @@ export function webChatSendTool(engine: DeepSeekWebEngine, mcp?: McpOrchestrator
           '--- 回复结束 ---',
           '',
           '会话已保存，可用 webchat_transfer 将整段对话转移到 harness 会话。',
-        ].join('
-'))
+        ].join('\n'))
       },
     },
     async execute(args: { text?: string; images?: unknown }): Promise<{ reply: string; error?: string; code?: string; partial: boolean }> {
@@ -158,8 +140,7 @@ export function webChatSendTool(engine: DeepSeekWebEngine, mcp?: McpOrchestrator
         ? args.images.filter(value => typeof value === 'string').map(value => value as string)
         : undefined
       // wait=true so the tool returns the completed reply (the GUI path is fire-and-forget).
-      const sender = mcp ?? engine
-      const result = await sender.send(textValue, true, images)
+      const result = await engine.send(textValue, true, images)
       return {
         reply: result.reply ?? '',
         error: result.error,
@@ -191,8 +172,7 @@ export function webChatRecoverTool(engine: DeepSeekWebEngine) {
       }
       const web = await engine.listWebConversations().catch(() => [] as Array<{ title: string }>)
       if (web.length === 0) return { report: 'webchat_recover: 未在网页端读到会话（可能未登录或页面已改版）' }
-      return { report: web.map(item => `- ${item.title}`).join('
-') }
+      return { report: web.map(item => `- ${item.title}`).join('\n') }
     },
   })
 }

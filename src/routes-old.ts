@@ -15,7 +15,6 @@ import type { TranscriptStore } from './store.ts'
 import type { WebChatTranscript } from './protocol.ts'
 import { exportTranscriptFile, transferToHarnessSession } from './transfer.ts'
 import type { DistillConfig } from './transfer.ts'
-import type { WebChatMcpBridge } from './mcp-bridge.ts'
 
 /** Cap on JSON request bodies (chat ops are small). */
 const MAX_JSON_BODY_BYTES = 64 * 1024
@@ -65,12 +64,11 @@ export interface WebChatRoutesDeps {
   engine: DeepSeekWebEngine
   store: TranscriptStore
   distill: DistillConfig
-  mcpBridge?: WebChatMcpBridge
 }
 
 /** Build every /api/dsh-webchat route. */
 export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
-  const { ctx, engine, store, distill, mcpBridge } = deps
+  const { ctx, engine, store, distill } = deps
 
   const guard = (req: IncomingMessage, res: ServerResponse): boolean => {
     if (isLoopbackRequest(req)) return true
@@ -96,7 +94,7 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
     }
   }
 
-  const baseRoutes: WebRoute[] = [
+  return [
     {
       kind: 'exact',
       path: '/api/dsh-webchat/state',
@@ -306,63 +304,4 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
       },
     },
   ]
-
-  const mcpRoutes: WebRoute[] = mcpBridge
-    ? [
-        {
-          kind: 'exact',
-          path: '/api/webchat/mcp/tools',
-          handler: async (req, res) => {
-            if (!guard(req, res)) return
-            try {
-              const tools = mcpBridge.listTools()
-              writeJson(res, 200, { ok: true, tools })
-            } catch (error) {
-              writeJson(res, 500, {
-                ok: false,
-                error: error instanceof Error ? error.message : String(error),
-              })
-            }
-          },
-        },
-        {
-          kind: 'exact',
-          path: '/api/webchat/mcp/call',
-          handler: async (req, res) => {
-            if (!guard(req, res)) return
-            try {
-              const body = await readJsonBody(req)
-              if (!body || typeof body.tool !== 'string') {
-                writeJson(res, 400, { ok: false, error: 'tool is required' })
-                return
-              }
-              if (!body.tool.startsWith('mcp__')) {
-                writeJson(res, 403, {
-                  ok: false,
-                  error: 'Only MCP tools are allowed',
-                })
-                return
-              }
-              const result = await mcpBridge.callTool({
-                tool: body.tool,
-                arguments:
-                  body.arguments &&
-                  typeof body.arguments === 'object' &&
-                  !Array.isArray(body.arguments)
-                    ? (body.arguments as Record<string, unknown>)
-                    : {},
-              })
-              writeJson(res, 200, { ok: true, result })
-            } catch (error) {
-              writeJson(res, 500, {
-                ok: false,
-                error: error instanceof Error ? error.message : String(error),
-              })
-            }
-          },
-        },
-      ]
-    : []
-
-  return [...baseRoutes, ...mcpRoutes]
 }
