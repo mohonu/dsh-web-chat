@@ -140,7 +140,7 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
         const body = await readJsonBody(req)
         const text = stringField(body, 'text')
         if (text === undefined) {
-          writeJson(res, 400, { ok: false, error: '缺少 text 字段' })
+          writeJson(res, 400, { ok: false, error: '\u7f3a\u5c11 text \u5b57\u6bb5' })
           return
         }
         // GUI sends resolve immediately; the reply streams in the background
@@ -169,7 +169,7 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
         const body = await readJsonBody(req)
         const enabled = typeof body?.['enabled'] === 'boolean' ? body['enabled'] : undefined
         if (enabled === undefined) {
-          writeJson(res, 400, { ok: false, error: '缺少 enabled 字段' })
+          writeJson(res, 400, { ok: false, error: '\u7f3a\u5c11 enabled \u5b57\u6bb5' })
           return
         }
         const result = await engine.setDeepThink(enabled)
@@ -184,7 +184,7 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
         const body = await readJsonBody(req)
         const enabled = typeof body?.['enabled'] === 'boolean' ? body['enabled'] : undefined
         if (enabled === undefined) {
-          writeJson(res, 400, { ok: false, error: '缺少 enabled 字段' })
+          writeJson(res, 400, { ok: false, error: '\u7f3a\u5c11 enabled \u5b57\u6bb5' })
           return
         }
         const result = await engine.setSearch(enabled)
@@ -204,7 +204,7 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
         const mode = body?.['mode'] === 'raw' ? 'raw' : body?.['mode'] === 'distill' ? 'distill' : undefined
         const transcript: WebChatTranscript | undefined = chatId === undefined ? undefined : store.getChat(chatId)
         if (transcript === undefined) {
-          writeJson(res, 404, { ok: false, error: '找不到该对话记录' })
+          writeJson(res, 404, { ok: false, error: '\u627e\u4e0d\u5230\u8be5\u5bf9\u8bdd\u8bb0\u5f55' })
           return
         }
         try {
@@ -226,7 +226,7 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
         const cwd = stringField(body, 'cwd')
         const transcript: WebChatTranscript | undefined = chatId === undefined ? undefined : store.getChat(chatId)
         if (transcript === undefined) {
-          writeJson(res, 404, { ok: false, error: '找不到该对话记录' })
+          writeJson(res, 404, { ok: false, error: '\u627e\u4e0d\u5230\u8be5\u5bf9\u8bdd\u8bb0\u5f55' })
           return
         }
         try {
@@ -256,7 +256,7 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
         const body = await readJsonBody(req)
         const title = stringField(body, 'title')
         if (title === undefined) {
-          writeJson(res, 400, { ok: false, error: '缺少 title 字段' })
+          writeJson(res, 400, { ok: false, error: '\u7f3a\u5c11 title \u5b57\u6bb5' })
           return
         }
         const result = await engine.recoverWebConversation(title)
@@ -272,11 +272,11 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
         const chatId = stringField(body, 'chatId')
         const title = stringField(body, 'title')
         if (chatId === undefined || title === undefined) {
-          writeJson(res, 400, { ok: false, error: '缺少 chatId 或 title 字段' })
+          writeJson(res, 400, { ok: false, error: '\u7f3a\u5c11 chatId \u6216 title \u5b57\u6bb5' })
           return
         }
         const renamed = store.renameChat(chatId, title)
-        if (renamed === undefined) writeJson(res, 404, { ok: false, error: '找不到该对话记录' })
+        if (renamed === undefined) writeJson(res, 404, { ok: false, error: '\u627e\u4e0d\u5230\u8be5\u5bf9\u8bdd\u8bb0\u5f55' })
         else writeJson(res, 200, { ok: true })
       },
     },
@@ -288,11 +288,11 @@ export function makeRoutes(deps: WebChatRoutesDeps): WebRoute[] {
         const body = await readJsonBody(req)
         const chatId = stringField(body, 'chatId')
         if (chatId === undefined) {
-          writeJson(res, 400, { ok: false, error: '缺少 chatId 字段' })
+          writeJson(res, 400, { ok: false, error: '\u7f3a\u5c11 chatId \u5b57\u6bb5' })
           return
         }
         const deleted = store.deleteChat(chatId)
-        if (!deleted) writeJson(res, 404, { ok: false, error: '找不到该对话记录' })
+        if (!deleted) writeJson(res, 404, { ok: false, error: '\u627e\u4e0d\u5230\u8be5\u5bf9\u8bdd\u8bb0\u5f55' })
         else writeJson(res, 200, { ok: true })
       },
     },

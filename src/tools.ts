@@ -20,10 +20,10 @@ import type { McpOrchestrator } from './mcp-orchestrator.ts'
 /** Actionable hint for a structured engine error code (surfaced to the agent). */
 function errorCodeHint(code: WebChatErrorCode | undefined): string {
   switch (code) {
-    case 'NEED_LOGIN': return '需要先登录：请在插件面板点击「打开登录窗口」完成 DeepSeek 网页登录。'
-    case 'PAGE_CHANGED': return '页面/协议疑似改版：请升级 dsh-webchat 插件。'
-    case 'TIMEOUT': return '生成超时：可稍后重试。'
-    case 'NETWORK': return '网络/浏览器错误：请检查网络或浏览器是否可用。'
+    case 'NEED_LOGIN': return '\u9700\u8981\u5148\u767b\u5f55\uff1a\u8bf7\u5728\u63d2\u4ef6\u9762\u677f\u70b9\u51fb\u300c\u6253\u5f00\u767b\u5f55\u7a97\u53e3\u300d\u5b8c\u6210 DeepSeek \u7f51\u9875\u767b\u5f55\u3002'
+    case 'PAGE_CHANGED': return '\u9875\u9762/\u534f\u8bae\u7591\u4f3c\u6539\u7248\uff1a\u8bf7\u5347\u7ea7 dsh-webchat \u63d2\u4ef6\u3002'
+    case 'TIMEOUT': return '\u751f\u6210\u8d85\u65f6\uff1a\u53ef\u7a0d\u540e\u91cd\u8bd5\u3002'
+    case 'NETWORK': return '\u7f51\u7edc/\u6d4f\u89c8\u5668\u9519\u8bef\uff1a\u8bf7\u68c0\u67e5\u7f51\u7edc\u6216\u6d4f\u89c8\u5668\u662f\u5426\u53ef\u7528\u3002'
     default: return ''
   }
 }
@@ -43,21 +43,20 @@ export interface WorkspaceRef {
 /** Render the chat list compactly. */
 function renderChats(store: TranscriptStore): string {
   const chats = store.list()
-  if (chats.length === 0) return '还没有任何网页端对话记录'
+  if (chats.length === 0) return '\u8fd8\u6ca1\u6709\u4efb\u4f55\u7f51\u9875\u7aef\u5bf9\u8bdd\u8bb0\u5f55'
   return chats.map(chat => {
     const messages = chat.messages.length
     const last = chat.messages.at(-1)
-    const preview = last === undefined ? '' : ` · 最后: ${last.content.replace(/\s+/g, ' ').slice(0, 60)}`
-    return `${chat.id} | ${chat.title} | ${chat.model} | ${messages} 条消息 | ${new Date(chat.updatedAt).toLocaleString()}${preview}`
-  }).join('
-')
+    const preview = last === undefined ? '' : ` \u00b7 \u6700\u540e: ${last.content.replace(/\s+/g, ' ').slice(0, 60)}`
+    return `${chat.id} | ${chat.title} | ${chat.model} | ${messages} \u6761\u6d88\u606f | ${new Date(chat.updatedAt).toLocaleString()}${preview}`
+  }).join('\n')
 }
 
 /** The engine-status tool. */
 export function webChatStatusTool(engine: DeepSeekWebEngine, store: TranscriptStore, listWorkspaces?: () => WorkspaceRef[] | undefined, mcpBridge?: WebChatMcpBridge) {
   return defineTool({
     name: 'webchat_status',
-    description: 'Report the DeepSeek 网页端 (chat.deepseek.com) web-chat state: engine status, login state, active chat, stored transcripts, and the harness workspaces available as webchat_transfer targets. Triggers: webchat, deepseek 网页端, 网页聊天. Use before webchat_send to confirm login.',
+    description: 'Report the DeepSeek \u7f51\u9875\u7aef (chat.deepseek.com) web-chat state: engine status, login state, active chat, stored transcripts, and the harness workspaces available as webchat_transfer targets. Triggers: webchat, deepseek \u7f51\u9875\u7aef, \u7f51\u9875\u804a\u5929. Use before webchat_send to confirm login.',
     parameters: {},
     output: {
       schema: {
@@ -80,19 +79,14 @@ export function webChatStatusTool(engine: DeepSeekWebEngine, store: TranscriptSt
         `search: ${String(status.search)}`,
         `busy: ${String(status.busy)}`,
         `activeChat: ${active === undefined ? '-' : `${active.id} (${active.title})`}`,
-        `chats:
-${renderChats(store)}`,
+        `chats:\n${renderChats(store)}`,
       ]
       const web = await engine.listWebConversations().catch(() => [] as Array<{ title: string }>)
       if (web.length > 0) {
         const localTitles = new Set(store.list().map(chat => chat.title))
         const missing = web.filter(item => !localTitles.has(item.title)).map(item => item.title)
-        lines.push(`webChats:
-${web.map(item => `  - ${item.title}`).join('
-')}`)
-        if (missing.length > 0) lines.push(`webChatsNotImported (use webchat_recover):
-${missing.map(title => `  - ${title}`).join('
-')}`)
+        lines.push(`webChats:\n${web.map(item => `  - ${item.title}`).join('\n')}`)
+        if (missing.length > 0) lines.push(`webChatsNotImported (use webchat_recover):\n${missing.map(title => `  - ${title}`).join('\n')}`)
       }
       const workspaces = listWorkspaces?.()
       if (workspaces !== undefined) {
@@ -108,8 +102,7 @@ ${missing.map(title => `  - ${title}`).join('
           lines.push('mcpTools: (none)')
         }
       }
-      return { report: lines.join('
-') }
+      return { report: lines.join('\n') }
     },
   })
 }
@@ -118,7 +111,7 @@ ${missing.map(title => `  - ${title}`).join('
 export function webChatSendTool(engine: DeepSeekWebEngine, mcp?: McpOrchestrator) {
   return defineTool({
     name: 'webchat_send',
-    description: 'Send one message through the DeepSeek 网页端 (chat.deepseek.com) using the web model — your web session, no API billing. The assistant reply streams until complete and returns as markdown. Optionally attach local image files (absolute paths) for multimodal prompts. Requires the user to have logged into the web chat once (webchat_status → loggedIn true). Best for asking the web model to explain/design/review; do not use for file operations. Triggers: 网页端提问, deepseek web, chatgpt mode.',
+    description: 'Send one message through the DeepSeek \u7f51\u9875\u7aef (chat.deepseek.com) using the web model \u2014 your web session, no API billing. The assistant reply streams until complete and returns as markdown. Optionally attach local image files (absolute paths) for multimodal prompts. Requires the user to have logged into the web chat once (webchat_status \u2192 loggedIn true). Best for asking the web model to explain/design/review; do not use for file operations. Triggers: \u7f51\u9875\u7aef\u63d0\u95ee, deepseek web, chatgpt mode.',
     parameters: {
       text: { type: 'string', required: true, description: 'The message to send to deepseek-chat on the web.' },
       images: { type: 'array', items: { type: 'string' }, description: 'Optional local absolute paths of image files to attach (multimodal prompt).' },
@@ -138,22 +131,21 @@ export function webChatSendTool(engine: DeepSeekWebEngine, mcp?: McpOrchestrator
         const partial = value.partial === true
         const hint = errorCodeHint(value.code as WebChatErrorCode | undefined)
         return text([
-          `webchat_send: 已通过 DeepSeek 网页端发送并收到回复${partial ? '（生成可能不完整）' : ''}`,
-          value.error !== undefined ? `（注意：${value.error}）` : '',
-          hint !== '' ? `（${hint}）` : '',
+          `webchat_send: \u5df2\u901a\u8fc7 DeepSeek \u7f51\u9875\u7aef\u53d1\u9001\u5e76\u6536\u5230\u56de\u590d${partial ? '\uff08\u751f\u6210\u53ef\u80fd\u4e0d\u5b8c\u6574\uff09' : ''}`,
+          value.error !== undefined ? `\uff08\u6ce8\u610f\uff1a${value.error}\uff09` : '',
+          hint !== '' ? `\uff08${hint}\uff09` : '',
           '',
-          '--- 网页端回复 ---',
-          (value.reply ?? '').trim() === '' ? '（空回复）' : (value.reply ?? '').trim(),
-          '--- 回复结束 ---',
+          '--- \u7f51\u9875\u7aef\u56de\u590d ---',
+          (value.reply ?? '').trim() === '' ? '\uff08\u7a7a\u56de\u590d\uff09' : (value.reply ?? '').trim(),
+          '--- \u56de\u590d\u7ed3\u675f ---',
           '',
-          '会话已保存，可用 webchat_transfer 将整段对话转移到 harness 会话。',
-        ].join('
-'))
+          '\u4f1a\u8bdd\u5df2\u4fdd\u5b58\uff0c\u53ef\u7528 webchat_transfer \u5c06\u6574\u6bb5\u5bf9\u8bdd\u8f6c\u79fb\u5230 harness \u4f1a\u8bdd\u3002',
+        ].join('\n'))
       },
     },
     async execute(args: { text?: string; images?: unknown }): Promise<{ reply: string; error?: string; code?: string; partial: boolean }> {
       const textValue = typeof args?.text === 'string' ? args.text.trim() : ''
-      if (textValue === '') return { reply: '', error: '缺少 text 参数', partial: false }
+      if (textValue === '') return { reply: '', error: '\u7f3a\u5c11 text \u53c2\u6570', partial: false }
       const images = Array.isArray(args?.images)
         ? args.images.filter(value => typeof value === 'string').map(value => value as string)
         : undefined
@@ -170,11 +162,11 @@ export function webChatSendTool(engine: DeepSeekWebEngine, mcp?: McpOrchestrator
   })
 }
 
-/** The web-conversation recover tool (sync web sidebar → local store). */
+/** The web-conversation recover tool (sync web sidebar \u2192 local store). */
 export function webChatRecoverTool(engine: DeepSeekWebEngine) {
   return defineTool({
     name: 'webchat_recover',
-    description: 'Recover a DeepSeek 网页端 conversation into the local store so it can be imported/transferred. With no title, lists the web-side conversations. Triggers: 同步网页会话, 恢复网页对话, sync webchat.',
+    description: 'Recover a DeepSeek \u7f51\u9875\u7aef conversation into the local store so it can be imported/transferred. With no title, lists the web-side conversations. Triggers: \u540c\u6b65\u7f51\u9875\u4f1a\u8bdd, \u6062\u590d\u7f51\u9875\u5bf9\u8bdd, sync webchat.',
     parameters: {
       title: { type: 'string', description: 'Conversation title (from the web sidebar or webchat_status webChats list). Omit to list web conversations.' },
     },
@@ -185,14 +177,13 @@ export function webChatRecoverTool(engine: DeepSeekWebEngine) {
     async execute(args: { title?: string }): Promise<{ report: string }> {
       if (typeof args?.title === 'string' && args.title.trim() !== '') {
         const result = await engine.recoverWebConversation(args.title.trim())
-        if (!result.ok) return { report: `webchat_recover: 恢复失败 — ${result.error ?? ''}` }
-        const dedup = result.created === false ? '（本地已存在，未重复导入）' : ''
-        return { report: `webchat_recover: 已恢复「${result.title ?? ''}」为本地对话 ${result.chatId ?? ''}${dedup}。可用 webchat_transfer 转移。` }
+        if (!result.ok) return { report: `webchat_recover: \u6062\u590d\u5931\u8d25 \u2014 ${result.error ?? ''}` }
+        const dedup = result.created === false ? '\uff08\u672c\u5730\u5df2\u5b58\u5728\uff0c\u672a\u91cd\u590d\u5bfc\u5165\uff09' : ''
+        return { report: `webchat_recover: \u5df2\u6062\u590d\u300c${result.title ?? ''}\u300d\u4e3a\u672c\u5730\u5bf9\u8bdd ${result.chatId ?? ''}${dedup}\u3002\u53ef\u7528 webchat_transfer \u8f6c\u79fb\u3002` }
       }
       const web = await engine.listWebConversations().catch(() => [] as Array<{ title: string }>)
-      if (web.length === 0) return { report: 'webchat_recover: 未在网页端读到会话（可能未登录或页面已改版）' }
-      return { report: web.map(item => `- ${item.title}`).join('
-') }
+      if (web.length === 0) return { report: 'webchat_recover: \u672a\u5728\u7f51\u9875\u7aef\u8bfb\u5230\u4f1a\u8bdd\uff08\u53ef\u80fd\u672a\u767b\u5f55\u6216\u9875\u9762\u5df2\u6539\u7248\uff09' }
+      return { report: web.map(item => `- ${item.title}`).join('\n') }
     },
   })
 }
@@ -201,7 +192,7 @@ export function webChatRecoverTool(engine: DeepSeekWebEngine) {
 export function webChatImportTool(store: TranscriptStore) {
   return defineTool({
     name: 'webchat_import',
-    description: 'Import one stored DeepSeek 网页端 transcript as markdown so the agent can continue the discussion itself. Triggers: 读取网页对话, import webchat, 把网页聊天作为上下文. Use webchat_status to list chat ids first.',
+    description: 'Import one stored DeepSeek \u7f51\u9875\u7aef transcript as markdown so the agent can continue the discussion itself. Triggers: \u8bfb\u53d6\u7f51\u9875\u5bf9\u8bdd, import webchat, \u628a\u7f51\u9875\u804a\u5929\u4f5c\u4e3a\u4e0a\u4e0b\u6587. Use webchat_status to list chat ids first.',
     parameters: {
       chatId: { type: 'string', description: 'Transcript id (from webchat_status). Omit for the active chat.' },
     },
@@ -221,7 +212,7 @@ export function webChatImportTool(store: TranscriptStore) {
     },
     async execute(args: { chatId?: string }): Promise<{ transcript: string; error?: string }> {
       const chat = typeof args?.chatId === 'string' ? store.getChat(args.chatId) : store.activeChat()
-      if (chat === undefined) return { transcript: '', error: 'webchat_import: 找不到对话记录（用 webchat_status 查看列表）' }
+      if (chat === undefined) return { transcript: '', error: 'webchat_import: \u627e\u4e0d\u5230\u5bf9\u8bdd\u8bb0\u5f55\uff08\u7528 webchat_status \u67e5\u770b\u5217\u8868\uff09' }
       return { transcript: renderTranscriptMarkdown(chat) }
     },
   })
@@ -231,7 +222,7 @@ export function webChatImportTool(store: TranscriptStore) {
 export function webChatTransferTool(hostCtx: Context, store: TranscriptStore, distill: DistillConfig) {
   return defineTool({
     name: 'webchat_transfer',
-    description: 'Transfer a stored DeepSeek 网页端 transcript into harness mode: distills the web conversation into an executable task brief (goal, established context, current state, next steps) and creates a NEW harness session whose first message is that brief (not the raw chat log), OR appends it as a fresh user message to an EXISTING session via targetSessionId (continue the same task). Optionally target a workspace (workspaceId from webchat_status workspaces list) so the new session is grouped under it. Returns the (new or target) session id. Triggers: 转移到 harness, 转成开发会话, transfer webchat.',
+    description: 'Transfer a stored DeepSeek \u7f51\u9875\u7aef transcript into harness mode: distills the web conversation into an executable task brief (goal, established context, current state, next steps) and creates a NEW harness session whose first message is that brief (not the raw chat log), OR appends it as a fresh user message to an EXISTING session via targetSessionId (continue the same task). Optionally target a workspace (workspaceId from webchat_status workspaces list) so the new session is grouped under it. Returns the (new or target) session id. Triggers: \u8f6c\u79fb\u5230 harness, \u8f6c\u6210\u5f00\u53d1\u4f1a\u8bdd, transfer webchat.',
     parameters: {
       chatId: { type: 'string', description: 'Transcript id (from webchat_status). Omit for the active chat.' },
       targetSessionId: { type: 'string', description: 'Optional existing harness session id to CONTINUE (append the brief as a new user message) instead of creating a new session. Omit to create a new session.' },
@@ -253,24 +244,24 @@ export function webChatTransferTool(hostCtx: Context, store: TranscriptStore, di
       },
       render: (_args, value: { sessionId?: string; distilled?: boolean; attached?: boolean; continued?: boolean; workspaceId?: string; error?: string }) => {
         if (value.error !== undefined) return text(value.error)
-        const note = value.distilled === true ? '（已蒸馏为任务简报）' : '（蒸馏不可用，已回退为原始对话记录）'
+        const note = value.distilled === true ? '\uff08\u5df2\u84b8\u998f\u4e3a\u4efb\u52a1\u7b80\u62a5\uff09' : '\uff08\u84b8\u998f\u4e0d\u53ef\u7528\uff0c\u5df2\u56de\u9000\u4e3a\u539f\u59cb\u5bf9\u8bdd\u8bb0\u5f55\uff09'
         if (value.continued === true) {
-          return text(`webchat_transfer: 已把网页对话作为新的用户消息延续到 harness 会话 ${value.sessionId ?? ''}${note}。请告知用户打开该会话继续开发。`)
+          return text(`webchat_transfer: \u5df2\u628a\u7f51\u9875\u5bf9\u8bdd\u4f5c\u4e3a\u65b0\u7684\u7528\u6237\u6d88\u606f\u5ef6\u7eed\u5230 harness \u4f1a\u8bdd ${value.sessionId ?? ''}${note}\u3002\u8bf7\u544a\u77e5\u7528\u6237\u6253\u5f00\u8be5\u4f1a\u8bdd\u7ee7\u7eed\u5f00\u53d1\u3002`)
         }
-        const where = value.workspaceId !== undefined ? `已归入工作区 ${value.workspaceId}` : '未分组'
-        return text(`webchat_transfer: 已创建新 harness 会话 ${value.sessionId ?? ''}${note}（${where}）。请告知用户从侧边栏打开该会话继续开发。`)
+        const where = value.workspaceId !== undefined ? `\u5df2\u5f52\u5165\u5de5\u4f5c\u533a ${value.workspaceId}` : '\u672a\u5206\u7ec4'
+        return text(`webchat_transfer: \u5df2\u521b\u5efa\u65b0 harness \u4f1a\u8bdd ${value.sessionId ?? ''}${note}\uff08${where}\uff09\u3002\u8bf7\u544a\u77e5\u7528\u6237\u4ece\u4fa7\u8fb9\u680f\u6253\u5f00\u8be5\u4f1a\u8bdd\u7ee7\u7eed\u5f00\u53d1\u3002`)
       },
     },
     async execute(args: { chatId?: string; targetSessionId?: string; workspaceId?: string; cwd?: string }): Promise<{ sessionId: string; distilled: boolean; attached: boolean; continued?: boolean; workspaceId?: string; error?: string }> {
       const chat = typeof args?.chatId === 'string' ? store.getChat(args.chatId) : store.activeChat()
-      if (chat === undefined) return { sessionId: '', distilled: false, attached: false, error: 'webchat_transfer: 找不到对话记录（用 webchat_status 查看列表）' }
+      if (chat === undefined) return { sessionId: '', distilled: false, attached: false, error: 'webchat_transfer: \u627e\u4e0d\u5230\u5bf9\u8bdd\u8bb0\u5f55\uff08\u7528 webchat_status \u67e5\u770b\u5217\u8868\uff09' }
       const targetSessionId = typeof args?.targetSessionId === 'string' && args.targetSessionId !== '' ? args.targetSessionId : undefined
       const workspace = targetSessionId === undefined && typeof args?.workspaceId === 'string' && args.workspaceId !== '' ? { workspaceId: args.workspaceId } : undefined
       try {
         const { sessionId, distilled, attached, workspaceId } = await transferToHarnessSession(hostCtx, { transcript: chat, cwd: args?.cwd, workspace, targetSessionId }, distill)
         return { sessionId, distilled, attached, continued: targetSessionId !== undefined, workspaceId }
       } catch (error) {
-        return { sessionId: '', distilled: false, attached: false, continued: targetSessionId !== undefined, error: `webchat_transfer: 转移失败 — ${String(error)}` }
+        return { sessionId: '', distilled: false, attached: false, continued: targetSessionId !== undefined, error: `webchat_transfer: \u8f6c\u79fb\u5931\u8d25 \u2014 ${String(error)}` }
       }
     },
   })

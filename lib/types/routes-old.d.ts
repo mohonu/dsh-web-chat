@@ -11,14 +11,12 @@ import type { WebRoute } from '@deepseek-ai/dsh-host-webserver';
 import type { DeepSeekWebEngine } from './engine/engine.ts';
 import type { TranscriptStore } from './store.ts';
 import type { DistillConfig } from './transfer.ts';
-import type { WebChatMcpBridge } from './mcp-bridge.ts';
 /** Route family dependencies. */
 export interface WebChatRoutesDeps {
     ctx: Context;
     engine: DeepSeekWebEngine;
     store: TranscriptStore;
     distill: DistillConfig;
-    mcpBridge?: WebChatMcpBridge;
 }
 /** Build every /api/dsh-webchat route. */
 export declare function makeRoutes(deps: WebChatRoutesDeps): WebRoute[];
