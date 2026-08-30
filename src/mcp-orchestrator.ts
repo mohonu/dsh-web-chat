@@ -38,6 +38,11 @@ export class McpOrchestrator {
     const fullMessage = mcpPrompt
       ? `${mcpPrompt}
 
+    console.log(
+      '[MCP] registered tools:',
+      tools.map(tool => tool.name)
+    )
+
 ${message}`
       : message
 
@@ -52,6 +57,7 @@ ${message}`
         currentImages
       )
       lastResult = result
+      console.log('[MCP DEBUG] raw reply:', result.reply)
 
       if (!result.ok || !result.reply) {
         break
